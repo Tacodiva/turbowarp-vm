@@ -3,11 +3,56 @@
  */
 
 /**
+ * Describes a 'stackable' block (eg. show)
+ */
+ class IntermediateStack {
+    /**
+     * @param {import("./enums").StackOpcode} opcode 
+     * @param {Object} inputs 
+     */
+    constructor(opcode, inputs = {}) {
+        /**
+         * The type of the stackable block.
+         * @type {import("./enums").StackOpcode}
+         */
+        this.opcode = opcode;
+
+        /**
+         * The 
+         * @type {Object} 
+         */
+        this.inputs = inputs;
+    }
+}
+
+/**
+ * Describes an input to a block.
+ * This could be a constant, variable or math operation.
+ */
+class IntermediateInput {
+    /**
+     * @param {import("./enums").InputOpcode} opcode 
+     * @param {Object} inputs 
+     */
+    constructor(opcode, inputs = {}) {
+        /**
+         * @type {import("./enums").InputOpcode}
+         */
+        this.opcode = opcode;
+
+        /**
+         * @type {Object}
+         */
+        this.inputs = inputs;
+    }
+}
+
+/**
  * An IntermediateScript describes a single script.
  * Scripts do not necessarily have hats.
  */
 class IntermediateScript {
-    constructor () {
+    constructor() {
         /**
          * The ID of the top block of this script.
          * @type {string}
@@ -16,7 +61,7 @@ class IntermediateScript {
 
         /**
          * List of nodes that make up this script.
-         * @type {Array|null}
+         * @type {IntermediateStack[]}
          */
         this.stack = null;
 
@@ -82,7 +127,7 @@ class IntermediateScript {
  * An IntermediateRepresentation contains scripts.
  */
 class IntermediateRepresentation {
-    constructor () {
+    constructor() {
         /**
          * The entry point of this IR.
          * @type {IntermediateScript}
@@ -98,6 +143,8 @@ class IntermediateRepresentation {
 }
 
 module.exports = {
+    IntermediateStack,
+    IntermediateInput,
     IntermediateScript,
     IntermediateRepresentation
 };

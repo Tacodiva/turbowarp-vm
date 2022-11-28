@@ -21,7 +21,7 @@ const ValueType = {
  * @readonly
  * @enum {string}
  */
-const BlockOpcode = {
+const StackOpcode = {
     NOP: "noop",
 
     ADDON_CALL: "addons.call",
@@ -107,7 +107,7 @@ const BlockOpcode = {
  * @readonly
  * @enum {string}
  */
-const ReporterOpcode = {
+const InputOpcode = {
     CONSTANT: "constant",
 
     COMPATIBILITY_LAYER: "compat",
@@ -190,7 +190,7 @@ const ReporterOpcode = {
 };
 
 module.exports = {
-    BlockOpcode,
-    ReporterOpcode,
+    StackOpcode,
+    InputOpcode,
     ValueType,
 };

@@ -3,9 +3,9 @@ const StringUtil = require('../util/string-util');
 const BlockType = require('../extension-support/block-type');
 const Variable = require('../engine/variable');
 const log = require('../util/log');
-const {IntermediateScript, IntermediateRepresentation} = require('./intermediate');
+const {IntermediateStack, IntermediateInput, IntermediateScript, IntermediateRepresentation} = require('./intermediate');
 const compatBlocks = require('./compat-blocks');
-const {BlockOpcode, ReporterOpcode} = require('./enums.js')
+const {StackOpcode, InputOpcode} = require('./enums.js')
 
 /**
  * @fileoverview Generate intermediate representations from Scratch blocks.
@@ -13,11 +13,6 @@ const {BlockOpcode, ReporterOpcode} = require('./enums.js')
 
 const SCALAR_TYPE = '';
 const LIST_TYPE = 'list';
-
-/**
- * @typedef {Object.<string, *>} Node
- * @property {string} kind
- */
 
 /**
  * Create a variable codegen object.
@@ -126,30 +121,28 @@ class ScriptTreeGenerator {
         return blockInfo;
     }
 
+    createConstantInput(constant) {
+        return new IntermediateInput(InputOpcode.CONSTANT, { value: constant });
+    }
+
     /**
      * Descend into a child input of a block. (eg. the input STRING of "length of ( )")
      * @param {*} parentBlock The parent Scratch block that contains the input.
      * @param {string} inputName The name of the input to descend into.
      * @private
-     * @returns {Node} Compiled input node for this input.
+     * @returns {IntermediateInput} Compiled input node for this input.
      */
     descendInputOfBlock (parentBlock, inputName) {
         const input = parentBlock.inputs[inputName];
         if (!input) {
             log.warn(`IR: ${parentBlock.opcode}: missing input ${inputName}`, parentBlock);
-            return {
-                kind: ReporterOpcode.CONSTANT,
-                value: 0
-            };
+            return this.createConstantInput(0);
         }
         const inputId = input.block;
         const block = this.getBlockById(inputId);
         if (!block) {
             log.warn(`IR: ${parentBlock.opcode}: could not find input ${inputName} with ID ${inputId}`);
-            return {
-                kind: ReporterOpcode.CONSTANT,
-                value: 0
-            };
+            return this.createConstantInput(0);
         }
 
         return this.descendInput(block);
@@ -159,30 +152,20 @@ class ScriptTreeGenerator {
      * Descend into an input. (eg. "length of ( )")
      * @param {*} block The parent Scratch block input.
      * @private
-     * @returns {Node} Compiled input node for this input.
+     * @returns {IntermediateInput} Compiled input node for this input.
      */
     descendInput (block) {
         switch (block.opcode) {
         case 'colour_picker':
-            return {
-                kind: ReporterOpcode.CONSTANT,
-                value: block.fields.COLOUR.value
-            };
+            return this.createConstantInput(block.fields.COLOUR.value);
         case 'math_angle':
         case 'math_integer':
         case 'math_number':
         case 'math_positive_number':
         case 'math_whole_number':
-            return {
-                kind: ReporterOpcode.CONSTANT,
-                value: block.fields.NUM.value
-            };
+            return this.createConstantInput(block.fields.NUM.value);
         case 'text':
-            return {
-                kind: ReporterOpcode.CONSTANT,
-                value: block.fields.TEXT.value
-            };
-
+            return this.createConstantInput(block.fields.TEXT.value);
         case 'argument_reporter_string_number': {
             const name = block.fields.VALUE.value;
             // lastIndexOf because multiple parameters with the same name will use the value of the last definition
@@ -190,21 +173,13 @@ class ScriptTreeGenerator {
             if (index === -1) {
                 // Legacy support
                 if (name.toLowerCase() === 'last key pressed') {
-                    return {
-                        kind: ReporterOpcode.TW_KEY_LAST_PRESSED,
-                    };
+                    return new IntermediateInput(InputOpcode.TW_KEY_LAST_PRESSED);
                 }
             }
             if (index === -1) {
-                return {
-                    kind: ReporterOpcode.CONSTANT,
-                    value: 0
-                };
+                return this.createConstantInput(0);
             }
-            return {
-                kind: ReporterOpcode.PROCEDURE_ARG_STRING_NUMBER,
-                index: index
-            };
+            return new IntermediateInput(InputOpcode.PROCEDURE_ARG_STRING_NUMBER, {index});
         }
         case 'argument_reporter_boolean': {
             // see argument_reporter_string_number above
@@ -212,20 +187,11 @@ class ScriptTreeGenerator {
             const index = this.script.arguments.lastIndexOf(name);
             if (index === -1) {
                 if (name.toLowerCase() === 'is compiled?' || name.toLowerCase() === 'is turbowarp?') {
-                    return {
-                        kind: ReporterOpcode.CONSTANT,
-                        value: true
-                    };
+                    return this.createConstantInput(true);
                 }
-                return {
-                    kind: ReporterOpcode.CONSTANT,
-                    value: 0
-                };
+                return this.createConstantInput(0);
             }
-            return {
-                kind: ReporterOpcode.PROCEDURE_ARG_BOOLEAN,
-                index: index
-            };
+            return new IntermediateInput(InputOpcode.PROCEDURE_ARG_BOOLEAN, {index});
         }
 
         case 'control_get_counter':
@@ -234,240 +200,156 @@ class ScriptTreeGenerator {
             };
 
         case 'data_variable':
-            return {
-                kind: ReporterOpcode.VAR_GET,
+            return new IntermediateInput(InputOpcode.VAR_GET, {
                 variable: this.descendVariable(block, 'VARIABLE', SCALAR_TYPE)
-            };
+            });
         case 'data_itemoflist':
-            return {
-                kind: ReporterOpcode.LIST_GET,
+            return new IntermediateInput(InputOpcode.LIST_GET, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE),
                 index: this.descendInputOfBlock(block, 'INDEX')
-            };
+            });
         case 'data_lengthoflist':
-            return {
-                kind: ReporterOpcode.LIST_LENGTH,
+            return new IntermediateInput(InputOpcode.LIST_LENGTH, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE)
-            };
+            });
         case 'data_listcontainsitem':
-            return {
-                kind: ReporterOpcode.LIST_CONTAINS,
+            return new IntermediateInput(InputOpcode.LIST_CONTAINS, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE),
                 item: this.descendInputOfBlock(block, 'ITEM')
-            };
+            });
         case 'data_itemnumoflist':
-            return {
-                kind: ReporterOpcode.LIST_INDEX_OF,
+            return new IntermediateInput(InputOpcode.LIST_INDEX_OF, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE),
                 item: this.descendInputOfBlock(block, 'ITEM')
-            };
+            });
         case 'data_listcontents':
-            return {
-                kind: ReporterOpcode.LIST_CONTENTS,
+            return new IntermediateInput(InputOpcode.LIST_CONTENTS, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE)
-            };
+            });
 
         case 'event_broadcast_menu': {
             const broadcastOption = block.fields.BROADCAST_OPTION;
             const broadcastVariable = this.target.lookupBroadcastMsg(broadcastOption.id, broadcastOption.value);
             // TODO: empty string probably isn't the correct fallback
             const broadcastName = broadcastVariable ? broadcastVariable.name : '';
-            return {
-                kind: ReporterOpcode.CONSTANT,
-                value: broadcastName
-            };
+            return this.createConstantInput(broadcastName);
         }
 
         case 'looks_backdropnumbername':
             if (block.fields.NUMBER_NAME.value === 'number') {
-                return {
-                    kind: ReporterOpcode.LOOKS_BACKDROP_NUMBER
-                };
+                return new IntermediateInput(InputOpcode.LOOKS_BACKDROP_NUMBER);
             }
-            return {
-                kind: ReporterOpcode.LOOKS_BACKDROP_NAME
-            };
+            return new IntermediateInput(InputOpcode.LOOKS_BACKDROP_NAME);
         case 'looks_costumenumbername':
             if (block.fields.NUMBER_NAME.value === 'number') {
-                return {
-                    kind: ReporterOpcode.LOOKS_COSTUME_NUMBER
-                };
+                return new IntermediateInput(InputOpcode.LOOKS_COSTUME_NUMBER);
             }
-            return {
-                kind: ReporterOpcode.LOOKS_COSTUME_NAME
-            };
+            return new IntermediateInput(InputOpcode.LOOKS_COSTUME_NAME);
         case 'looks_size':
-            return {
-                kind: ReporterOpcode.LOOKS_SIZE_GET,
-            };
+            return new IntermediateInput(InputOpcode.LOOKS_SIZE_GET);
 
         case 'motion_direction':
-            return {
-                kind: ReporterOpcode.MOTION_DIRECTION_GET,
-            };
+            return new IntermediateInput(InputOpcode.MOTION_DIRECTION_GET);
         case 'motion_xposition':
-            return {
-                kind: ReporterOpcode.MOTION_X_GET,
-            };
+            return new IntermediateInput(InputOpcode.MOTION_X_GET);
         case 'motion_yposition':
-            return {
-                kind: ReporterOpcode.MOTION_Y_GET,
-            };
+            return new IntermediateInput(InputOpcode.MOTION_Y_GET);
 
         case 'operator_add':
-            return {
-                kind: ReporterOpcode.OP_ADD,
+            return new IntermediateInput(InputOpcode.OP_ADD, {
                 left: this.descendInputOfBlock(block, 'NUM1'),
                 right: this.descendInputOfBlock(block, 'NUM2')
-            };
+            });
         case 'operator_and':
-            return {
-                kind: ReporterOpcode.OP_AND,
+            return new IntermediateInput(InputOpcode.OP_AND, {
                 left: this.descendInputOfBlock(block, 'OPERAND1'),
                 right: this.descendInputOfBlock(block, 'OPERAND2')
-            };
+            });
         case 'operator_contains':
-            return {
-                kind: ReporterOpcode.OP_CONTAINS,
+            return new IntermediateInput(InputOpcode.OP_CONTAINS, {
                 string: this.descendInputOfBlock(block, 'STRING1'),
                 contains: this.descendInputOfBlock(block, 'STRING2')
-            };
+            });
         case 'operator_divide':
-            return {
-                kind: ReporterOpcode.OP_DIVIDE,
+            return new IntermediateInput(InputOpcode.OP_DIVIDE, {
                 left: this.descendInputOfBlock(block, 'NUM1'),
                 right: this.descendInputOfBlock(block, 'NUM2')
-            };
+            });
         case 'operator_equals':
-            return {
-                kind: ReporterOpcode.OP_EQUALS,
+            return new IntermediateInput(InputOpcode.OP_EQUALS, {
                 left: this.descendInputOfBlock(block, 'OPERAND1'),
                 right: this.descendInputOfBlock(block, 'OPERAND2')
-            };
+            });
         case 'operator_gt':
-            return {
-                kind: ReporterOpcode.OP_GREATER,
+            return new IntermediateInput(InputOpcode.OP_GREATER, {
                 left: this.descendInputOfBlock(block, 'OPERAND1'),
                 right: this.descendInputOfBlock(block, 'OPERAND2')
-            };
+            });
         case 'operator_join':
-            return {
-                kind: ReporterOpcode.OP_JOIN,
+            return new IntermediateInput(InputOpcode.OP_JOIN, {
                 left: this.descendInputOfBlock(block, 'STRING1'),
                 right: this.descendInputOfBlock(block, 'STRING2')
-            };
+            });
         case 'operator_length':
-            return {
-                kind: ReporterOpcode.OP_LENGTH,
+            return new IntermediateInput(InputOpcode.OP_LENGTH, {
                 string: this.descendInputOfBlock(block, 'STRING')
-            };
+            });
         case 'operator_letter_of':
-            return {
-                kind: ReporterOpcode.OP_LETTER_OF,
+            return new IntermediateInput(InputOpcode.OP_LETTER_OF, {
                 letter: this.descendInputOfBlock(block, 'LETTER'),
                 string: this.descendInputOfBlock(block, 'STRING')
-            };
+            });
         case 'operator_lt':
-            return {
-                kind: ReporterOpcode.OP_LESS,
+            return new IntermediateInput(InputOpcode.OP_LESS, {
                 left: this.descendInputOfBlock(block, 'OPERAND1'),
                 right: this.descendInputOfBlock(block, 'OPERAND2')
-            };
+            });
         case 'operator_mathop': {
             const value = this.descendInputOfBlock(block, 'NUM');
             const operator = block.fields.OPERATOR.value.toLowerCase();
             switch (operator) {
-            case 'abs': return {
-                kind: ReporterOpcode.OP_ABS,
-                value
-            };
-            case 'floor': return {
-                kind: ReporterOpcode.OP_FLOOR,
-                value
-            };
-            case 'ceiling': return {
-                kind: ReporterOpcode.OP_CEILING,
-                value
-            };
-            case 'sqrt': return {
-                kind: ReporterOpcode.OP_SQRT,
-                value
-            };
-            case 'sin': return {
-                kind: ReporterOpcode.OP_SIN,
-                value
-            };
-            case 'cos': return {
-                kind: ReporterOpcode.OP_COS,
-                value
-            };
-            case 'tan': return {
-                kind: ReporterOpcode.OP_TAN,
-                value
-            };
-            case 'asin': return {
-                kind: ReporterOpcode.OP_ASIN,
-                value
-            };
-            case 'acos': return {
-                kind: ReporterOpcode.OP_ACOS,
-                value
-            };
-            case 'atan': return {
-                kind: ReporterOpcode.OP_ATAN,
-                value
-            };
-            case 'ln': return {
-                kind: ReporterOpcode.OP_LOG_E,
-                value
-            };
-            case 'log': return {
-                kind: ReporterOpcode.OP_LOG_10,
-                value
-            };
-            case 'e ^': return {
-                kind: ReporterOpcode.OP_POW_E,
-                value
-            };
-            case '10 ^': return {
-                kind: ReporterOpcode.OP_POW_10,
-                value
-            };
-            default: return {
-                kind: ReporterOpcode.CONSTANT,
-                value: 0
-            };
+                case 'abs': return new IntermediateInput(InputOpcode.OP_ABS, {value});
+                case 'floor': return new IntermediateInput(InputOpcode.OP_FLOOR, {value});
+                case 'ceiling': return new IntermediateInput(InputOpcode.OP_CEILING, {value});
+                case 'sqrt': return new IntermediateInput(InputOpcode.OP_SQRT, {value});
+                case 'sin': return new IntermediateInput(InputOpcode.OP_SIN, {value});
+                case 'cos': return new IntermediateInput(InputOpcode.OP_COS, {value});
+                case 'tan': return new IntermediateInput(InputOpcode.OP_TAN, {value});
+                case 'asin': return new IntermediateInput(InputOpcode.OP_ASIN, {value});
+                case 'acos':return new IntermediateInput(InputOpcode.OP_ACOS, {value});
+                case 'atan': return new IntermediateInput(InputOpcode.OP_ATAN, {value});
+                case 'ln': return new IntermediateInput(InputOpcode.OP_LOG_E, {value});
+                case 'log': return new IntermediateInput(InputOpcode.OP_LOG_10, {value});
+                case 'e ^': return new IntermediateInput(InputOpcode.OP_POW_E, {value});
+                case '10 ^': return new IntermediateInput(InputOpcode.OP_POW_10, {value});
+                default: this.createConstantInput(0);
             }
         }
         case 'operator_mod':
-            return {
-                kind: ReporterOpcode.OP_MOD,
+            return new IntermediateInput(InputOpcode.OP_MOD, {
                 left: this.descendInputOfBlock(block, 'NUM1'),
                 right: this.descendInputOfBlock(block, 'NUM2')
-            };
+            });
         case 'operator_multiply':
-            return {
-                kind: ReporterOpcode.OP_MULTIPLY,
+            return new IntermediateInput(InputOpcode.OP_MULTIPLY, {
                 left: this.descendInputOfBlock(block, 'NUM1'),
                 right: this.descendInputOfBlock(block, 'NUM2')
-            };
+            });
         case 'operator_not':
-            return {
-                kind: ReporterOpcode.OP_NOT,
+            return new IntermediateInput(InputOpcode.OP_NOT, {
                 operand: this.descendInputOfBlock(block, 'OPERAND')
-            };
+            });
         case 'operator_or':
-            return {
-                kind: ReporterOpcode.OP_OR,
+            return new IntermediateInput(InputOpcode.OP_OR, {
                 left: this.descendInputOfBlock(block, 'OPERAND1'),
                 right: this.descendInputOfBlock(block, 'OPERAND2')
-            };
+            });
         case 'operator_random': {
             const from = this.descendInputOfBlock(block, 'FROM');
             const to = this.descendInputOfBlock(block, 'TO');
             // If both values are known at compile time, we can do some optimizations.
             // TODO: move optimizations to jsgen?
-            if (from.kind === ReporterOpcode.CONSTANT && to.kind === ReporterOpcode.CONSTANT) {
+            if (from.opcode === InputOpcode.CONSTANT && to.opcode === InputOpcode.CONSTANT) {
                 const sFrom = from.value;
                 const sTo = to.value;
                 const nFrom = Cast.toNumber(sFrom);
@@ -475,183 +357,125 @@ class ScriptTreeGenerator {
                 // If both numbers are the same, random is unnecessary.
                 // todo: this probably never happens so consider removing
                 if (nFrom === nTo) {
-                    return {
-                        kind: ReporterOpcode.CONSTANT,
-                        value: nFrom
-                    };
+                    return this.createConstantInput(nFrom);
                 }
                 // If both are ints, hint this to the compiler
                 if (Cast.isInt(sFrom) && Cast.isInt(sTo)) {
-                    return {
-                        kind: ReporterOpcode.OP_RANDOM,
+                    return new IntermediateInput(InputOpcode.OP_RANDOM, {
                         low: nFrom <= nTo ? from : to,
                         high: nFrom <= nTo ? to : from,
                         useInts: true,
                         useFloats: false
-                    };
+                    });
                 }
                 // Otherwise hint that these are floats
-                return {
-                    kind: ReporterOpcode.OP_RANDOM,
+                return new IntermediateInput(InputOpcode.OP_RANDOM, {
                     low: nFrom <= nTo ? from : to,
                     high: nFrom <= nTo ? to : from,
                     useInts: false,
                     useFloats: true
-                };
-            } else if (from.kind === ReporterOpcode.CONSTANT) {
+                });
+            } else if (from.opcode === InputOpcode.CONSTANT) {
                 // If only one value is known at compile-time, we can still attempt some optimizations.
                 if (!Cast.isInt(Cast.toNumber(from.value))) {
-                    return {
-                        kind: ReporterOpcode.OP_RANDOM,
+                    return new IntermediateInput(InputOpcode.OP_RANDOM, {
                         low: from,
                         high: to,
                         useInts: false,
                         useFloats: true
-                    };
+                    });
                 }
-            } else if (to.kind === ReporterOpcode.CONSTANT) {
+            } else if (to.opcode === InputOpcode.CONSTANT) {
                 if (!Cast.isInt(Cast.toNumber(to.value))) {
-                    return {
-                        kind: ReporterOpcode.OP_RANDOM,
+                    return new IntermediateInput(InputOpcode.OP_RANDOM, {
                         low: from,
                         high: to,
                         useInts: false,
                         useFloats: true
-                    };
+                    });
                 }
             }
             // No optimizations possible
-            return {
-                kind: ReporterOpcode.OP_RANDOM,
+            return new IntermediateInput(InputOpcode.OP_RANDOM, {
                 low: from,
                 high: to,
                 useInts: false,
                 useFloats: false
-            };
+            });
         }
         case 'operator_round':
-            return {
-                kind: ReporterOpcode.OP_ROUND,
+            return new IntermediateInput(InputOpcode.OP_ROUND, {
                 value: this.descendInputOfBlock(block, 'NUM')
-            };
+            });
         case 'operator_subtract':
-            return {
-                kind: ReporterOpcode.OP_SUBTRACT,
+            return new IntermediateInput(InputOpcode.OP_SUBTRACT, {
                 left: this.descendInputOfBlock(block, 'NUM1'),
                 right: this.descendInputOfBlock(block, 'NUM2')
-            };
+            });
 
         case 'procedures_call':
             return this.descendProcedure(block);
 
         case 'sensing_answer':
-            return {
-                kind: ReporterOpcode.SENSING_ANSWER,
-            };
+            return new IntermediateInput(InputOpcode.SENSING_ANSWER);
+
         case 'sensing_coloristouchingcolor':
-            return {
-                kind: ReporterOpcode.SENSING_COLOR_TOUCHING_COLOR,
+            return new IntermediateInput(InputOpcode.SENSING_COLOR_TOUCHING_COLOR, {
                 target: this.descendInputOfBlock(block, 'COLOR2'),
                 mask: this.descendInputOfBlock(block, 'COLOR')
-            };
+            });
         case 'sensing_current':
             switch (block.fields.CURRENTMENU.value.toLowerCase()) {
-            case 'year':
-                return {
-                    kind: ReporterOpcode.SENSING_TIME_YEAR,
-                };
-            case 'month':
-                return {
-                    kind: ReporterOpcode.SENSING_TIME_MONTH,
-                };
-            case 'date':
-                return {
-                    kind: ReporterOpcode.SENSING_TIME_DATE,
-                };
-            case 'dayofweek':
-                return {
-                    kind: ReporterOpcode.SENSING_TIME_WEEKDAY,
-                };
-            case 'hour':
-                return {
-                    kind: ReporterOpcode.SENSING_TIME_HOUR,
-                };
-            case 'minute':
-                return {
-                    kind: ReporterOpcode.SENSING_TIME_MINUTE,
-                };
-            case 'second':
-                return {
-                    kind: ReporterOpcode.SENSING_TIME_SECOND,
-                };
+                case 'year': return new IntermediateInput(InputOpcode.SENSING_TIME_YEAR);
+                case 'month': return new IntermediateInput(InputOpcode.SENSING_TIME_MONTH);
+                case 'date': return new IntermediateInput(InputOpcode.SENSING_TIME_DATE);
+                case 'dayofweek': return new IntermediateInput(InputOpcode.SENSING_TIME_WEEKDAY);
+                case 'hour': return new IntermediateInput(InputOpcode.SENSING_TIME_HOUR);
+                case 'minute': return new IntermediateInput(InputOpcode.SENSING_TIME_MINUTE);
+                case 'second': return new IntermediateInput(InputOpcode.SENSING_TIME_SECOND);
+                default: return this.createConstantInput(0);
             }
-            return {
-                kind: ReporterOpcode.CONSTANT,
-                value: 0
-            };
         case 'sensing_dayssince2000':
-            return {
-                kind: ReporterOpcode.SENSING_TIME_DAYS_SINCE_2000,
-            };
+            return new IntermediateInput(InputOpcode.SENSING_TIME_DAYS_SINCE_2000);
         case 'sensing_distanceto':
-            return {
-                kind: ReporterOpcode.SENSING_DISTANCE,
+            return new IntermediateInput(InputOpcode.SENSING_TIME_MINUTE, {
                 target: this.descendInputOfBlock(block, 'DISTANCETOMENU')
-            };
+            });
         case 'sensing_keypressed':
-            return {
-                kind: ReporterOpcode.SENSING_KEY_DOWN,
+            return new IntermediateInput(InputOpcode.SENSING_KEY_DOWN, {
                 key: this.descendInputOfBlock(block, 'KEY_OPTION')
-            };
+            });
         case 'sensing_mousedown':
-            return {
-                kind: ReporterOpcode.SENSING_MOUSE_DOWN,
-            };
+            return new IntermediateInput(InputOpcode.SENSING_MOUSE_DOWN);
         case 'sensing_mousex':
-            return {
-                kind: ReporterOpcode.SENSING_MOUSE_X,
-            };
+            return new IntermediateInput(InputOpcode.SENSING_MOUSE_X);
         case 'sensing_mousey':
-            return {
-                kind: ReporterOpcode.SENSING_MOUSE_Y,
-            };
+            return new IntermediateInput(InputOpcode.SENSING_MOUSE_Y);
         case 'sensing_of':
-            return {
-                kind: ReporterOpcode.SENSING_OF,
+            return new IntermediateInput(InputOpcode.SENSING_OF, {
                 property: block.fields.PROPERTY.value,
                 object: this.descendInputOfBlock(block, 'OBJECT')
-            };
+            });
         case 'sensing_timer':
             this.usesTimer = true;
-            return {
-                kind: ReporterOpcode.SENSING_TIMER_GET,
-            };
+            return new IntermediateInput(InputOpcode.SENSING_TIMER_GET);
         case 'sensing_touchingcolor':
-            return {
-                kind: ReporterOpcode.SENSING_TOUCHING_COLOR,
+            return new IntermediateInput(InputOpcode.SENSING_TOUCHING_COLOR, {
                 color: this.descendInputOfBlock(block, 'COLOR')
-            };
+            });
         case 'sensing_touchingobject':
-            return {
-                kind: ReporterOpcode.SENSING_TOUCHING_OBJECT,
+            return new IntermediateInput(InputOpcode.SENSING_TOUCHING_OBJECT, {
                 object: this.descendInputOfBlock(block, 'TOUCHINGOBJECTMENU')
-            };
+            });
         case 'sensing_username':
-            return {
-                kind: ReporterOpcode.SENSING_USERNAME,
-            };
+            return new IntermediateInput(InputOpcode.SENSING_USERNAME);
 
         case 'sound_sounds_menu':
             // This menu is special compared to other menus -- it actually has an opcode function.
-            return {
-                kind: ReporterOpcode.CONSTANT,
-                value: block.fields.SOUND_MENU.value
-            };
+            return this.createConstantInput(block.fields.SOUND_MENU.value);
 
         case 'tw_getLastKeyPressed':
-            return {
-                kind: ReporterOpcode.TW_KEY_LAST_PRESSED,
-            };
+            return new IntermediateInput(InputOpcode.TW_KEY_LAST_PRESSED);
 
         default: {
             const opcodeFunction = this.runtime.getOpcodeFunction(block.opcode);
@@ -674,10 +498,7 @@ class ScriptTreeGenerator {
             const inputs = Object.keys(block.inputs);
             const fields = Object.keys(block.fields);
             if (inputs.length === 0 && fields.length === 1) {
-                return {
-                    kind: ReporterOpcode.CONSTANT,
-                    value: block.fields[fields[0]].value
-                };
+                return this.createConstantInput(block.fields[fields[0]].value);
             }
 
             log.warn(`IR: Unknown input: ${block.opcode}`, block);
@@ -690,78 +511,55 @@ class ScriptTreeGenerator {
      * Descend into a stacked block. (eg. "move ( ) steps")
      * @param {*} block The Scratch block to parse.
      * @private
-     * @returns {Node} Compiled node for this block.
+     * @returns {IntermediateStack} Compiled node for this block.
      */
     descendStackedBlock (block) {
         switch (block.opcode) {
         case 'control_all_at_once':
             // In Scratch 3, this block behaves like "if 1 = 1"
-            return {
-                kind: BlockOpcode.CONTROL_IF_ELSE,
-                condition: {
-                    kind: ReporterOpcode.CONSTANT,
-                    value: true
-                },
+            return new IntermediateStack(StackOpcode.CONTROL_IF_ELSE, {
+                condition: this.createConstantInput(true),
                 whenTrue: this.descendSubstack(block, 'SUBSTACK'),
                 whenFalse: []
-            };
-        case 'control_clear_counter':
-            return {
-                kind: 'counter.clear'
-            };
+            });
         case 'control_create_clone_of':
-            return {
-                kind: BlockOpcode.CONTROL_CLONE_CREATE,
+            return new IntermediateStack(StackOpcode.CONTROL_CLONE_CREATE, {
                 target: this.descendInputOfBlock(block, 'CLONE_OPTION')
-            };
+            });
         case 'control_delete_this_clone':
             this.script.yields = true;
-            return {
-                kind: BlockOpcode.CONTROL_CLONE_DELETE
-            };
+            return new IntermediateStack(StackOpcode.CONTROL_CLONE_DELETE);
         case 'control_forever':
             this.analyzeLoop();
-            return {
-                kind: BlockOpcode.CONTROL_WHILE,
-                condition: {
-                    kind: ReporterOpcode.CONSTANT,
-                    value: true
-                },
+            return new IntermediateStack(StackOpcode.CONTROL_WHILE, {
+                condition: this.createConstantInput(true),
                 do: this.descendSubstack(block, 'SUBSTACK')
-            };
+            });
         case 'control_for_each':
             this.analyzeLoop();
-            return {
-                kind: BlockOpcode.CONTROL_FOR,
+            return new IntermediateStack(StackOpcode.CONTROL_FOR, {
                 variable: this.descendVariable(block, 'VARIABLE', SCALAR_TYPE),
                 count: this.descendInputOfBlock(block, 'VALUE'),
                 do: this.descendSubstack(block, 'SUBSTACK')
-            };
+            });
         case 'control_if':
-            return {
-                kind: BlockOpcode.CONTROL_IF_ELSE,
+            return new IntermediateStack(StackOpcode.CONTROL_IF_ELSE, {
                 condition: this.descendInputOfBlock(block, 'CONDITION'),
                 whenTrue: this.descendSubstack(block, 'SUBSTACK'),
                 whenFalse: []
-            };
+            });
         case 'control_if_else':
-            return {
-                kind: BlockOpcode.CONTROL_IF_ELSE,
+            return new IntermediateStack(StackOpcode.CONTROL_IF_ELSE, {
                 condition: this.descendInputOfBlock(block, 'CONDITION'),
                 whenTrue: this.descendSubstack(block, 'SUBSTACK'),
                 whenFalse: this.descendSubstack(block, 'SUBSTACK2')
-            };
-        case 'control_incr_counter':
-            return {
-                kind: 'counter.increment'
-            };
+            });
         case 'control_repeat':
             this.analyzeLoop();
-            return {
-                kind: BlockOpcode.CONTROL_REPEAT,
+            return new IntermediateStack(StackOpcode.CONTROL_REPEAT, {
                 times: this.descendInputOfBlock(block, 'TIMES'),
                 do: this.descendSubstack(block, 'SUBSTACK')
-            };
+            });
         case 'control_repeat_until': {
             this.analyzeLoop();
             // Dirty hack: automatically enable warp timer for this block if it uses timer
@@ -772,355 +570,267 @@ class ScriptTreeGenerator {
             if (needsWarpTimer) {
                 this.script.yields = true;
             }
-            return {
-                kind: BlockOpcode.CONTROL_WHILE,
-                condition: {
-                    kind: ReporterOpcode.OP_NOT,
+            return new IntermediateStack(StackOpcode.CONTROL_WHILE, {
+                condition: new IntermediateInput(InputOpcode.OP_NOT, {
                     operand: condition
-                },
+                }),
                 do: this.descendSubstack(block, 'SUBSTACK'),
                 warpTimer: needsWarpTimer
-            };
+            });
         }
         case 'control_stop': {
             const level = block.fields.STOP_OPTION.value;
             if (level === 'all') {
                 this.script.yields = true;
-                return {
-                    kind: BlockOpcode.CONTROL_STOP_ALL
-                };
+                return new IntermediateStack(StackOpcode.CONTROL_STOP_ALL);
             } else if (level === 'other scripts in sprite' || level === 'other scripts in stage') {
-                return {
-                    kind: BlockOpcode.CONTROL_STOP_OTHERS
-                };
+                return new IntermediateStack(StackOpcode.CONTROL_STOP_OTHERS);
             } else if (level === 'this script') {
-                return {
-                    kind: BlockOpcode.CONTROL_STOP_SCRIPT
-                };
+                return new IntermediateStack(StackOpcode.CONTROL_STOP_SCRIPT);
             }
-            return {
-                kind: BlockOpcode.NOP
-            };
+            return new IntermediateStack(StackOpcode.NOP);
         }
         case 'control_wait':
             this.script.yields = true;
-            return {
-                kind: BlockOpcode.CONTROL_WAIT,
+            return new IntermediateStack(StackOpcode.CONTROL_WAIT, {
                 seconds: this.descendInputOfBlock(block, 'DURATION')
-            };
+            });
         case 'control_wait_until':
             this.script.yields = true;
-            return {
-                kind: BlockOpcode.CONTROL_WAIT_UNTIL,
+            return new IntermediateStack(StackOpcode.CONTROL_WAIT_UNTIL, {
                 condition: this.descendInputOfBlock(block, 'CONDITION')
-            };
+            });
         case 'control_while':
             this.analyzeLoop();
-            return {
-                kind: BlockOpcode.CONTROL_WHILE,
+            return new IntermediateStack(StackOpcode.CONTROL_WHILE, {
                 condition: this.descendInputOfBlock(block, 'CONDITION'),
                 do: this.descendSubstack(block, 'SUBSTACK'),
                 // We should consider analyzing this like we do for control_repeat_until
                 warpTimer: false
-            };
+            });
 
         case 'data_addtolist':
-            return {
-                kind: BlockOpcode.LIST_ADD,
+            return new IntermediateStack(StackOpcode.LIST_ADD, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE),
                 item: this.descendInputOfBlock(block, 'ITEM')
-            };
+            });
         case 'data_changevariableby': {
             const variable = this.descendVariable(block, 'VARIABLE', SCALAR_TYPE);
-            return {
-                kind: BlockOpcode.VAR_SET,
+            return new IntermediateStack(StackOpcode.VAR_SET, {
                 variable,
-                value: {
-                    kind: ReporterOpcode.OP_ADD,
-                    left: {
-                        kind: ReporterOpcode.VAR_GET,
-                        variable
-                    },
+                value: new IntermediateInput(InputOpcode.OP_ADD, {
+                    left: new IntermediateInput(InputOpcode.VAR_GET, {variable}),
                     right: this.descendInputOfBlock(block, 'VALUE')
-                }
-            };
+                })
+            });
         }
         case 'data_deletealloflist':
-            return {
-                kind: BlockOpcode.LIST_DELETE_ALL,
+            return new IntermediateStack(StackOpcode.LIST_DELETE_ALL, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE)
-            };
+            });
         case 'data_deleteoflist': {
             const index = this.descendInputOfBlock(block, 'INDEX');
-            if (index.kind === ReporterOpcode.CONSTANT && index.value === 'all') {
-                return {
-                    kind: BlockOpcode.LIST_DELETE_ALL,
+            if (index.opcode === InputOpcode.CONSTANT && index.value === 'all') {
+                return new IntermediateStack(StackOpcode.LIST_DELETE_ALL, {
                     list: this.descendVariable(block, 'LIST', LIST_TYPE)
-                };
+                });
             }
-            return {
-                kind: BlockOpcode.LIST_DELETE,
+            return new IntermediateStack(StackOpcode.LIST_DELETE, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE),
                 index: index
-            };
+            });
         }
         case 'data_hidelist':
-            return {
-                kind: BlockOpcode.LIST_HIDE,
+            return new IntermediateStack(StackOpcode.LIST_HIDE, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE)
-            };
+            });
         case 'data_hidevariable':
-            return {
-                kind: BlockOpcode.VAR_HIDE,
+            return new IntermediateStack(StackOpcode.VAR_HIDE, {
                 variable: this.descendVariable(block, 'VARIABLE', SCALAR_TYPE)
-            };
+            });
         case 'data_insertatlist':
-            return {
-                kind: BlockOpcode.LIST_INSERT,
+            return new IntermediateStack(StackOpcode.LIST_INSERT, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE),
                 index: this.descendInputOfBlock(block, 'INDEX'),
                 item: this.descendInputOfBlock(block, 'ITEM')
-            };
+            });
         case 'data_replaceitemoflist':
-            return {
-                kind: BlockOpcode.LIST_REPLACE,
+            return new IntermediateStack(StackOpcode.LIST_REPLACE, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE),
                 index: this.descendInputOfBlock(block, 'INDEX'),
                 item: this.descendInputOfBlock(block, 'ITEM')
-            };
+            });
         case 'data_setvariableto':
-            return {
-                kind: BlockOpcode.VAR_SET,
+            return new IntermediateStack(StackOpcode.VAR_SET, {
                 variable: this.descendVariable(block, 'VARIABLE', SCALAR_TYPE),
                 value: this.descendInputOfBlock(block, 'VALUE')
-            };
+            });
         case 'data_showlist':
-            return {
-                kind: BlockOpcode.LIST_SHOW,
+            return new IntermediateStack(StackOpcode.LIST_SHOW, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE)
-            };
+            });
         case 'data_showvariable':
-            return {
-                kind: BlockOpcode.VAR_SHOW,
+            return new IntermediateStack(StackOpcode.VAR_SHOW, {
                 variable: this.descendVariable(block, 'VARIABLE', SCALAR_TYPE)
-            };
+            });
 
         case 'event_broadcast':
-            return {
-                kind: BlockOpcode.EVENT_BROADCAST,
+            return new IntermediateStack(StackOpcode.EVENT_BROADCAST, {
                 broadcast: this.descendInputOfBlock(block, 'BROADCAST_INPUT')
-            };
+            });
         case 'event_broadcastandwait':
             this.script.yields = true;
-            return {
-                kind: BlockOpcode.EVENT_BROADCAST_AND_WAIT,
+            return new IntermediateStack(StackOpcode.EVENT_BROADCAST_AND_WAIT, {
                 broadcast: this.descendInputOfBlock(block, 'BROADCAST_INPUT')
-            };
+            });
 
         case 'looks_changeeffectby':
-            return {
-                kind: BlockOpcode.LOOKS_EFFECT_CHANGE,
+            return new IntermediateStack(StackOpcode.LOOKS_EFFECT_CHANGE, {
                 effect: block.fields.EFFECT.value.toLowerCase(),
                 value: this.descendInputOfBlock(block, 'CHANGE')
-            };
+            });
         case 'looks_changesizeby':
-            return {
-                kind: BlockOpcode.LOOKS_SIZE_CHANGE,
+            return new IntermediateStack(StackOpcode.LOOKS_SIZE_CHANGE, {
                 size: this.descendInputOfBlock(block, 'CHANGE')
-            };
+            });
         case 'looks_cleargraphiceffects':
-            return {
-                kind: BlockOpcode.LOOKS_EFFECT_CLEAR,
-            };
+            return new IntermediateStack(StackOpcode.LOOKS_EFFECT_CLEAR);
         case 'looks_goforwardbackwardlayers':
             if (block.fields.FORWARD_BACKWARD.value === 'forward') {
-                return {
-                    kind: BlockOpcode.LOOKS_LAYER_FORWARD,
+                return new IntermediateStack(StackOpcode.LOOKS_LAYER_FORWARD, {
                     layers: this.descendInputOfBlock(block, 'NUM')
-                };
+                });
             }
-            return {
-                kind: BlockOpcode.LOOKS_LAYER_BACKWARD,
+            return new IntermediateStack(StackOpcode.LOOKS_LAYER_BACKWARD, {
                 layers: this.descendInputOfBlock(block, 'NUM')
-            };
+            });
         case 'looks_gotofrontback':
             if (block.fields.FRONT_BACK.value === 'front') {
-                return {
-                    kind: BlockOpcode.LOOKS_LAYER_FRONT
-                };
+                return new IntermediateStack(StackOpcode.LOOKS_LAYER_FRONT);
             }
-            return {
-                kind: BlockOpcode.LOOKS_LAYER_BACK
-            };
+            return new IntermediateStack(StackOpcode.LOOKS_LAYER_BACK);
         case 'looks_hide':
-            return {
-                kind: BlockOpcode.LOOKS_HIDE
-            };
+            return new IntermediateStack(StackOpcode.LOOKS_HIDE);
         case 'looks_nextbackdrop':
-            return {
-                kind: BlockOpcode.LOOKS_BACKDROP_NEXT
-            };
+            return new IntermediateStack(StackOpcode.LOOKS_BACKDROP_NEXT);
         case 'looks_nextcostume':
-            return {
-                kind: BlockOpcode.LOOKS_COSTUME_NEXT
-            };
+            return new IntermediateStack(StackOpcode.LOOKS_COSTUME_NEXT);
         case 'looks_seteffectto':
-            return {
-                kind: BlockOpcode.LOOKS_EFFECT_SET,
+            return new IntermediateStack(StackOpcode.LOOKS_EFFECT_SET, {
                 effect: block.fields.EFFECT.value.toLowerCase(),
                 value: this.descendInputOfBlock(block, 'VALUE')
-            };
+            });
         case 'looks_setsizeto':
-            return {
-                kind: BlockOpcode.LOOKS_SIZE_SET,
+            return new IntermediateStack(StackOpcode.LOOKS_SIZE_SET, {
                 size: this.descendInputOfBlock(block, 'SIZE')
-            };
+            });
         case 'looks_show':
-            return {
-                kind: BlockOpcode.LOOKS_SHOW
-            };
+            return new IntermediateStack(StackOpcode.LOOKS_SHOW);
         case 'looks_switchbackdropto':
-            return {
-                kind: BlockOpcode.LOOKS_BACKDROP_SET,
+            return new IntermediateStack(StackOpcode.LOOKS_BACKDROP_SET, {
                 backdrop: this.descendInputOfBlock(block, 'BACKDROP')
-            };
+            });
         case 'looks_switchcostumeto':
-            return {
-                kind: BlockOpcode.LOOKS_COSTUME_SET,
+            return new IntermediateStack(StackOpcode.LOOKS_COSTUME_SET, {
                 costume: this.descendInputOfBlock(block, 'COSTUME')
-            };
+            });
 
         case 'motion_changexby':
-            return {
-                kind: BlockOpcode.MOTION_X_CHANGE,
+            return new IntermediateStack(StackOpcode.MOTION_X_CHANGE, {
                 dx: this.descendInputOfBlock(block, 'DX')
-            };
+            });
         case 'motion_changeyby':
-            return {
-                kind: BlockOpcode.MOTION_Y_CHANGE,
+            return new IntermediateStack(StackOpcode.MOTION_Y_CHANGE, {
                 dy: this.descendInputOfBlock(block, 'DY')
-            };
+            });
         case 'motion_gotoxy':
-            return {
-                kind: BlockOpcode.MOTION_XY_SET,
+            return new IntermediateStack(StackOpcode.MOTION_XY_SET, {
                 x: this.descendInputOfBlock(block, 'X'),
                 y: this.descendInputOfBlock(block, 'Y')
-            };
+            });
         case 'motion_ifonedgebounce':
-            return {
-                kind: BlockOpcode.MOTION_IF_ON_EDGE_BOUNCE,
-            };
+            return new IntermediateStack(StackOpcode.MOTION_IF_ON_EDGE_BOUNCE);
         case 'motion_movesteps':
-            return {
-                kind: BlockOpcode.MOTION_STEP,
+            return new IntermediateStack(StackOpcode.MOTION_STEP, {
                 steps: this.descendInputOfBlock(block, 'STEPS')
-            };
+            });
         case 'motion_pointindirection':
-            return {
-                kind: BlockOpcode.MOTION_DIRECTION_SET,
+            return new IntermediateStack(StackOpcode.MOTION_DIRECTION_SET, {
                 direction: this.descendInputOfBlock(block, 'DIRECTION')
-            };
+            });
         case 'motion_setrotationstyle':
-            return {
-                kind: BlockOpcode.MOTION_ROTATION_STYLE_SET,
+            return new IntermediateStack(StackOpcode.MOTION_ROTATION_STYLE_SET, {
                 style: block.fields.STYLE.value
-            };
+            });
         case 'motion_setx':
-            return {
-                kind: BlockOpcode.MOTION_X_SET,
+            return new IntermediateStack(StackOpcode.MOTION_X_SET, {
                 x: this.descendInputOfBlock(block, 'X')
-            };
+            });
         case 'motion_sety':
-            return {
-                kind: BlockOpcode.MOTION_Y_SET,
+            return new IntermediateStack(StackOpcode.MOTION_Y_SET, {
                 y: this.descendInputOfBlock(block, 'Y')
-            };
+            });
         case 'motion_turnleft':
-            return {
-                kind: BlockOpcode.MOTION_DIRECTION_SET,
-                direction: {
-                    kind: ReporterOpcode.OP_SUBTRACT,
-                    left: {
-                        kind: ReporterOpcode.MOTION_DIRECTION_GET,
-                    },
+            return new IntermediateStack(StackOpcode.MOTION_DIRECTION_SET, {
+                direction: new IntermediateInput(InputOpcode.OP_SUBTRACT, {
+                    left: new IntermediateInput(InputOpcode.MOTION_DIRECTION_GET),
                     right: this.descendInputOfBlock(block, 'DEGREES')
-                }
-            };
+                })
+            });
         case 'motion_turnright':
-            return {
-                kind: BlockOpcode.MOTION_DIRECTION_SET,
-                direction: {
-                    kind: ReporterOpcode.OP_ADD,
-                    left: {
-                        kind: ReporterOpcode.MOTION_DIRECTION_GET,
-                    },
+            return new IntermediateStack(StackOpcode.MOTION_DIRECTION_SET, {
+                direction: new IntermediateInput(InputOpcode.OP_ADD, {
+                    left: new IntermediateInput(InputOpcode.MOTION_DIRECTION_GET),
                     right: this.descendInputOfBlock(block, 'DEGREES')
-                }
-            };
+                })
+            });
 
         case 'pen_clear':
-            return {
-                kind: BlockOpcode.PEN_CLEAR
-            };
+            return new IntermediateStack(StackOpcode.PEN_CLEAR);
         case 'pen_changePenColorParamBy':
-            return {
-                kind: BlockOpcode.PEN_COLOR_PARAM_CHANGE,
+            return new IntermediateStack(StackOpcode.PEN_COLOR_PARAM_CHANGE, {
                 param: this.descendInputOfBlock(block, 'COLOR_PARAM'),
                 value: this.descendInputOfBlock(block, 'VALUE')
-            };
+            });
         case 'pen_changePenHueBy':
-            return {
-                kind: BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGACY,
+            return new IntermediateStack(StackOpcode.PEN_COLOR_HUE_CHANGE_LEGACY, {
                 hue: this.descendInputOfBlock(block, 'HUE')
-            };
+            });
         case 'pen_changePenShadeBy':
-            return {
-                kind: BlockOpcode.PEN_COLOR_SHADE_CHANGE_LEGACY,
+            return new IntermediateStack(StackOpcode.PEN_COLOR_SHADE_CHANGE_LEGACY, {
                 shade: this.descendInputOfBlock(block, 'SHADE')
-            };
+            });
         case 'pen_penDown':
-            return {
-                kind: BlockOpcode.PEN_DOWN
-            };
+            return new IntermediateStack(StackOpcode.PEN_DOWN);
         case 'pen_penUp':
-            return {
-                kind: BlockOpcode.PEN_UP
-            };
+            return new IntermediateStack(StackOpcode.PEN_UP);
         case 'pen_setPenColorParamTo':
-            return {
-                kind: BlockOpcode.PEN_COLOR_PARAM_SET,
+            return new IntermediateStack(StackOpcode.PEN_COLOR_PARAM_SET, {
                 param: this.descendInputOfBlock(block, 'COLOR_PARAM'),
                 value: this.descendInputOfBlock(block, 'VALUE')
-            };
+            });
         case 'pen_setPenColorToColor':
-            return {
-                kind: BlockOpcode.PEN_COLOR_SET,
+            return new IntermediateStack(StackOpcode.PEN_COLOR_SET, {
                 color: this.descendInputOfBlock(block, 'COLOR')
-            };
+            });
         case 'pen_setPenHueToNumber':
-            return {
-                kind: BlockOpcode.PEN_COLOR_HUE_SET_LEGACY,
+            return new IntermediateStack(StackOpcode.PEN_COLOR_HUE_SET_LEGACY, {
                 hue: this.descendInputOfBlock(block, 'HUE')
-            };
+            });
         case 'pen_setPenShadeToNumber':
-            return {
-                kind: BlockOpcode.PEN_COLOR_SHADE_SET_LEGACY,
+            return new IntermediateStack(StackOpcode.PEN_COLOR_SHADE_SET_LEGACY, {
                 shade: this.descendInputOfBlock(block, 'SHADE')
-            };
+            });
         case 'pen_setPenSizeTo':
-            return {
-                kind: BlockOpcode.PEN_SIZE_SET,
+            return new IntermediateStack(StackOpcode.PEN_SIZE_SET, {
                 size: this.descendInputOfBlock(block, 'SIZE')
-            };
+            });
         case 'pen_changePenSizeBy':
-            return {
-                kind: BlockOpcode.PEN_SIZE_CHANGE,
+            return new IntermediateStack(StackOpcode.PEN_SIZE_CHANGE, {
                 size: this.descendInputOfBlock(block, 'SIZE')
-            };
+            });
         case 'pen_stamp':
-            return {
-                kind: BlockOpcode.PEN_STAMP
-            };
+            return new IntermediateStack(StackOpcode.PEN_STAMP);
 
         case 'procedures_call': {
             const procedureCode = block.mutation.proccode;
@@ -1131,15 +841,11 @@ class ScriptTreeGenerator {
                 }
             }
             if (procedureCode === 'tw:debugger;') {
-                return {
-                    kind: BlockOpcode.DEBUGGER
-                };
+                return new IntermediateStack(StackOpcode.DEBUGGER);
             }
             const paramNamesIdsAndDefaults = this.blocks.getProcedureParamNamesIdsAndDefaults(procedureCode);
             if (paramNamesIdsAndDefaults === null) {
-                return {
-                    kind: BlockOpcode.NOP
-                };
+                return new IntermediateStack(StackOpcode.NOP);
             }
 
             const [paramNames, paramIds, paramDefaults] = paramNamesIdsAndDefaults;
@@ -1153,27 +859,21 @@ class ScriptTreeGenerator {
                     if (block.inputs[paramIds[i]] && block.inputs[paramIds[i]].block) {
                         value = this.descendInputOfBlock(block, paramIds[i]);
                     } else {
-                        value = {
-                            kind: ReporterOpcode.CONSTANT,
-                            value: paramDefaults[i]
-                        };
+                        value = this.createConstantInput(paramDefaults[i]);
                     }
                     args[paramNames[i]] = value;
                 }
-                return {
-                    kind: BlockOpcode.ADDON_CALL,
+                return new IntermediateStack(StackOpcode.ADDON_CALL, {
                     code: procedureCode,
                     arguments: args,
                     blockId: block.id
-                };
+                });
             }
 
             const definitionId = this.blocks.getProcedureDefinition(procedureCode);
             const definitionBlock = this.blocks.getBlock(definitionId);
             if (!definitionBlock) {
-                return {
-                    kind: BlockOpcode.NOP
-                };
+                return new IntermediateStack(StackOpcode.NOP);
             }
             const innerDefinition = this.blocks.getBlock(definitionBlock.inputs.custom_block.block);
 
@@ -1208,20 +908,16 @@ class ScriptTreeGenerator {
                 if (block.inputs[paramIds[i]] && block.inputs[paramIds[i]].block) {
                     value = this.descendInputOfBlock(block, paramIds[i]);
                 } else {
-                    value = {
-                        kind: ReporterOpcode.CONSTANT,
-                        value: paramDefaults[i]
-                    };
+                    value = this.createConstantInput(paramDefaults[i]);
                 }
                 args.push(value);
             }
 
-            return {
-                kind: BlockOpcode.PROCEDURE_CALL,
+            return new IntermediateStack(StackOpcode.PROCEDURE_CALL, {
                 code: procedureCode,
                 variant,
                 arguments: args
-            };
+            });
         }
         case 'procedures_return':
             return {
@@ -1230,9 +926,7 @@ class ScriptTreeGenerator {
             };
 
         case 'sensing_resettimer':
-            return {
-                kind: BlockOpcode.SENSING_TIMER_RESET
-            };
+            return new IntermediateStack(StackOpcode.SENSING_TIMER_RESET);
 
         default: {
             const opcodeFunction = this.runtime.getOpcodeFunction(block.opcode);
@@ -1256,10 +950,9 @@ class ScriptTreeGenerator {
             if (this.thread.stackClick) {
                 try {
                     const inputNode = this.descendInput(block);
-                    return {
-                        kind: BlockOpcode.VISUAL_REPORT,
+                    return new IntermediateStack(StackOpcode.VISUAL_REPORT, {
                         input: inputNode
-                    };
+                    });
                 } catch (e) {
                     // Ignore
                 }
@@ -1274,9 +967,9 @@ class ScriptTreeGenerator {
     /**
      * Descend into a stack of blocks (eg. the blocks contained within an "if" block)
      * @param {*} parentBlock The parent Scratch block that contains the stack to parse.
-     * @param {*} substackName The name of the stack to descend into.
+     * @param {string} substackName The name of the stack to descend into.
      * @private
-     * @returns {Node[]} List of stacked block nodes.
+     * @returns {IntermediateStack} Stacked blocks.
      */
     descendSubstack (parentBlock, substackName) {
         const input = parentBlock.inputs[substackName];
@@ -1491,7 +1184,7 @@ class ScriptTreeGenerator {
      * Descend into a block that uses the compatibility layer.
      * @param {*} block The block to use the compatibility layer for.
      * @private
-     * @returns {Node} The parsed node.
+     * @returns {IntermediateStack} The parsed node.
      */
     descendCompatLayer (block) {
         this.script.yields = true;
@@ -1507,28 +1200,12 @@ class ScriptTreeGenerator {
         for (const name of Object.keys(block.fields)) {
             fields[name] = block.fields[name].value;
         }
-
-        const blockInfo = this.getBlockInfo(block.opcode);
-        const blockType = (blockInfo && blockInfo.info && blockInfo.info.blockType) || BlockType.COMMAND;
-        const substacks = {};
-        if (blockType === BlockType.CONDITIONAL || blockType === BlockType.LOOP) {
-            for (const inputName in block.inputs) {
-                if (!inputName.startsWith('SUBSTACK')) continue;
-                const branchNum = inputName === 'SUBSTACK' ? 1 : +inputName.substring('SUBSTACK'.length);
-                if (!isNaN(branchNum)) {
-                    substacks[branchNum] = this.descendSubstack(block, inputName);
-                }
-            }
-        }
-
-        return {
-            kind: BlockOpcode.COMPATIBILITY_LAYER,
+        return new IntermediateStack(StackOpcode.COMPATIBILITY_LAYER, {
             opcode: block.opcode,
             blockType,
             inputs,
-            fields,
-            substacks
-        };
+            fields
+        });
     }
 
     analyzeLoop () {

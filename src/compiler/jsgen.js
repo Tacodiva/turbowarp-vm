@@ -4,11 +4,11 @@ const BlockType = require('../extension-support/block-type');
 const VariablePool = require('./variable-pool');
 const jsexecute = require('./jsexecute');
 const environment = require('./environment');
-const {BlockOpcode, ReporterOpcode, ValueType} = require('./enums.js')
+const {StackOpcode, InputOpcode, ValueType} = require('./enums.js')
 
 // Imported for JSDoc types, not to actually use
 // eslint-disable-next-line no-unused-vars
-const {IntermediateScript, IntermediateRepresentation} = require('./intermediate');
+const {IntermediateStack, IntermediateInput, IntermediateScript, IntermediateRepresentation} = require('./intermediate');
 
 /**
  * @fileoverview Convert intermediate representations to JavaScript functions.
@@ -420,31 +420,32 @@ class JSGenerator {
     }
 
     /**
-     * @param {object} node Input node to compile.
+     * @param {IntermediateInput} block Input node to compile.
      * @returns {Input} Compiled input.
      */
-    descendInput (node) {
-        switch (node.kind) {
-        case ReporterOpcode.PROCEDURE_ARG_BOOLEAN:
+    descendInput (block) {
+        const node = block.inputs;
+        switch (block.opcode) {
+        case InputOpcode.PROCEDURE_ARG_BOOLEAN:
             return new TypedInput(`toBoolean(p${node.index})`, ValueType.BOOLEAN);
-        case ReporterOpcode.PROCEDURE_ARG_STRING_NUMBER:
+        case InputOpcode.PROCEDURE_ARG_STRING_NUMBER:
             return new TypedInput(`p${node.index}`, ValueType.UNKNOWN);
 
-        case ReporterOpcode.COMPATIBILITY_LAYER:
+        case InputOpcode.COMPATIBILITY_LAYER:
             // Compatibility layer inputs never use flags.
-            return new TypedInput(`(${this.generateCompatibilityLayerCall(node, false)})`, ValueType.UNKNOWN);
+            return new TypedInput(`(${this.generateCompatibilityLayerCall(block, false)})`, ValueType.UNKNOWN);
 
-        case ReporterOpcode.CONSTANT:
+        case InputOpcode.CONSTANT:
             return this.safeConstantInput(node.value);
 
-        case ReporterOpcode.SENSING_KEY_DOWN:
+        case InputOpcode.SENSING_KEY_DOWN:
             return new TypedInput(`runtime.ioDevices.keyboard.getKeyIsDown(${this.descendInput(node.key).asSafe()})`, ValueType.BOOLEAN);
 
-        case ReporterOpcode.LIST_CONTAINS:
+        case InputOpcode.LIST_CONTAINS:
             return new TypedInput(`listContains(${this.referenceVariable(node.list)}, ${this.descendInput(node.item).asUnknown()})`, ValueType.BOOLEAN);
-        case ReporterOpcode.LIST_CONTENTS:
+        case InputOpcode.LIST_CONTENTS:
             return new TypedInput(`listContents(${this.referenceVariable(node.list)})`, ValueType.STRING);
-        case ReporterOpcode.LIST_GET: {
+        case InputOpcode.LIST_GET: {
             const index = this.descendInput(node.index);
             if (environment.supportsNullishCoalescing) {
                 if (index.isAlwaysNumberOrNaN()) {
@@ -456,61 +457,61 @@ class JSGenerator {
             }
             return new TypedInput(`listGet(${this.referenceVariable(node.list)}.value, ${index.asUnknown()})`, ValueType.UNKNOWN);
         }
-        case ReporterOpcode.LIST_INDEX_OF:
+        case InputOpcode.LIST_INDEX_OF:
             return new TypedInput(`listIndexOf(${this.referenceVariable(node.list)}, ${this.descendInput(node.item).asUnknown()})`, ValueType.NUMBER);
-        case ReporterOpcode.LIST_LENGTH:
+        case InputOpcode.LIST_LENGTH:
             return new TypedInput(`${this.referenceVariable(node.list)}.value.length`, ValueType.NUMBER);
 
-        case ReporterOpcode.LOOKS_SIZE_GET:
+        case InputOpcode.LOOKS_SIZE_GET:
             return new TypedInput('Math.round(target.size)', ValueType.NUMBER);
-        case ReporterOpcode.LOOKS_BACKDROP_NAME:
+        case InputOpcode.LOOKS_BACKDROP_NAME:
             return new TypedInput('stage.getCostumes()[stage.currentCostume].name', ValueType.STRING);
-        case ReporterOpcode.LOOKS_BACKDROP_NUMBER:
+        case InputOpcode.LOOKS_BACKDROP_NUMBER:
             return new TypedInput('(stage.currentCostume + 1)', ValueType.NUMBER);
-        case ReporterOpcode.LOOKS_COSTUME_NAME:
+        case InputOpcode.LOOKS_COSTUME_NAME:
             return new TypedInput('target.getCostumes()[target.currentCostume].name', ValueType.STRING);
-        case ReporterOpcode.LOOKS_COSTUME_NUMBER:
+        case InputOpcode.LOOKS_COSTUME_NUMBER:
             return new TypedInput('(target.currentCostume + 1)', ValueType.NUMBER);
 
-        case ReporterOpcode.MOTION_DIRECTION_GET:
+        case InputOpcode.MOTION_DIRECTION_GET:
             return new TypedInput('target.direction', ValueType.NUMBER);
-        case ReporterOpcode.MOTION_X_GET:
+        case InputOpcode.MOTION_X_GET:
             return new TypedInput('limitPrecision(target.x)', ValueType.NUMBER);
-        case ReporterOpcode.MOTION_Y_GET:
+        case InputOpcode.MOTION_Y_GET:
             return new TypedInput('limitPrecision(target.y)', ValueType.NUMBER);
 
-        case ReporterOpcode.SENSING_MOUSE_DOWN:
+        case InputOpcode.SENSING_MOUSE_DOWN:
             return new TypedInput('runtime.ioDevices.mouse.getIsDown()', ValueType.BOOLEAN);
-        case ReporterOpcode.SENSING_MOUSE_X:
+        case InputOpcode.SENSING_MOUSE_X:
             return new TypedInput('runtime.ioDevices.mouse.getScratchX()', ValueType.NUMBER);
-        case ReporterOpcode.SENSING_MOUSE_Y:
+        case InputOpcode.SENSING_MOUSE_Y:
             return new TypedInput('runtime.ioDevices.mouse.getScratchY()', ValueType.NUMBER);
 
-        case ReporterOpcode.OP_ABS:
+        case InputOpcode.OP_ABS:
             return new TypedInput(`Math.abs(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
-        case ReporterOpcode.OP_ACOS:
+        case InputOpcode.OP_ACOS:
             // Needs to be marked as NaN because Math.acos(1.0001) === NaN
             return new TypedInput(`((Math.acos(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_ADD:
+        case InputOpcode.OP_ADD:
             // Needs to be marked as NaN because Infinity + -Infinity === NaN
             return new TypedInput(`(${this.descendInput(node.left).asNumber()} + ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_AND:
+        case InputOpcode.OP_AND:
             return new TypedInput(`(${this.descendInput(node.left).asBoolean()} && ${this.descendInput(node.right).asBoolean()})`, ValueType.BOOLEAN);
-        case ReporterOpcode.OP_ASIN:
+        case InputOpcode.OP_ASIN:
             // Needs to be marked as NaN because Math.asin(1.0001) === NaN
             return new TypedInput(`((Math.asin(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_ATAN:
+        case InputOpcode.OP_ATAN:
             return new TypedInput(`((Math.atan(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, ValueType.NUMBER);
-        case ReporterOpcode.OP_CEILING:
+        case InputOpcode.OP_CEILING:
             return new TypedInput(`Math.ceil(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
-        case ReporterOpcode.OP_CONTAINS:
+        case InputOpcode.OP_CONTAINS:
             return new TypedInput(`(${this.descendInput(node.string).asString()}.toLowerCase().indexOf(${this.descendInput(node.contains).asString()}.toLowerCase()) !== -1)`, ValueType.BOOLEAN);
-        case ReporterOpcode.OP_COS:
+        case InputOpcode.OP_COS:
             return new TypedInput(`(Math.round(Math.cos((Math.PI * ${this.descendInput(node.value).asNumber()}) / 180) * 1e10) / 1e10)`, ValueType.NUMBER);
-        case ReporterOpcode.OP_DIVIDE:
+        case InputOpcode.OP_DIVIDE:
             // Needs to be marked as NaN because 0 / 0 === NaN
             return new TypedInput(`(${this.descendInput(node.left).asNumber()} / ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_EQUALS: {
+        case InputOpcode.OP_EQUALS: {
             const left = this.descendInput(node.left);
             const right = this.descendInput(node.right);
             // When both operands are known to never be numbers, only use string comparison to avoid all number parsing.
@@ -533,11 +534,11 @@ class JSGenerator {
             // No compile-time optimizations possible - use fallback method.
             return new TypedInput(`compareEqual(${left.asUnknown()}, ${right.asUnknown()})`, ValueType.BOOLEAN);
         }
-        case ReporterOpcode.OP_POW_E:
+        case InputOpcode.OP_POW_E:
             return new TypedInput(`Math.exp(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
-        case ReporterOpcode.OP_FLOOR:
+        case InputOpcode.OP_FLOOR:
             return new TypedInput(`Math.floor(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
-        case ReporterOpcode.OP_GREATER: {
+        case InputOpcode.OP_GREATER: {
             const left = this.descendInput(node.left);
             const right = this.descendInput(node.right);
             // When the left operand is a number and the right operand is a number or NaN, we can use >
@@ -555,11 +556,11 @@ class JSGenerator {
             // No compile-time optimizations possible - use fallback method.
             return new TypedInput(`compareGreaterThan(${left.asUnknown()}, ${right.asUnknown()})`, ValueType.BOOLEAN);
         }
-        case ReporterOpcode.OP_JOIN:
+        case InputOpcode.OP_JOIN:
             return new TypedInput(`(${this.descendInput(node.left).asString()} + ${this.descendInput(node.right).asString()})`, ValueType.STRING);
-        case ReporterOpcode.OP_LENGTH:
+        case InputOpcode.OP_LENGTH:
             return new TypedInput(`${this.descendInput(node.string).asString()}.length`, ValueType.NUMBER);
-        case ReporterOpcode.OP_LESS: {
+        case InputOpcode.OP_LESS: {
             const left = this.descendInput(node.left);
             const right = this.descendInput(node.right);
             // When the left operand is a number or NaN and the right operand is a number, we can use <
@@ -577,26 +578,26 @@ class JSGenerator {
             // No compile-time optimizations possible - use fallback method.
             return new TypedInput(`compareLessThan(${left.asUnknown()}, ${right.asUnknown()})`, ValueType.BOOLEAN);
         }
-        case ReporterOpcode.OP_LETTER_OF:
+        case InputOpcode.OP_LETTER_OF:
             return new TypedInput(`((${this.descendInput(node.string).asString()})[(${this.descendInput(node.letter).asNumber()} | 0) - 1] || "")`, ValueType.STRING);
-        case ReporterOpcode.OP_LOG_E:
+        case InputOpcode.OP_LOG_E:
             // Needs to be marked as NaN because Math.log(-1) == NaN
             return new TypedInput(`Math.log(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_LOG_10:
+        case InputOpcode.OP_LOG_10:
             // Needs to be marked as NaN because Math.log(-1) == NaN
             return new TypedInput(`(Math.log(${this.descendInput(node.value).asNumber()}) / Math.LN10)`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_MOD:
+        case InputOpcode.OP_MOD:
             this.descendedIntoModulo = true;
             // Needs to be marked as NaN because mod(0, 0) (and others) == NaN
             return new TypedInput(`mod(${this.descendInput(node.left).asNumber()}, ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_MULTIPLY:
+        case InputOpcode.OP_MULTIPLY:
             // Needs to be marked as NaN because Infinity * 0 === NaN
             return new TypedInput(`(${this.descendInput(node.left).asNumber()} * ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_NOT:
+        case InputOpcode.OP_NOT:
             return new TypedInput(`!${this.descendInput(node.operand).asBoolean()}`, ValueType.BOOLEAN);
-        case ReporterOpcode.OP_OR:
+        case InputOpcode.OP_OR:
             return new TypedInput(`(${this.descendInput(node.left).asBoolean()} || ${this.descendInput(node.right).asBoolean()})`, ValueType.BOOLEAN);
-        case ReporterOpcode.OP_RANDOM:
+        case InputOpcode.OP_RANDOM:
             if (node.useInts) {
                 return new TypedInput(`randomInt(${this.descendInput(node.low).asNumber()}, ${this.descendInput(node.high).asNumber()})`, ValueType.NUMBER);
             }
@@ -604,45 +605,45 @@ class JSGenerator {
                 return new TypedInput(`randomFloat(${this.descendInput(node.low).asNumber()}, ${this.descendInput(node.high).asNumber()})`, ValueType.NUMBER);
             }
             return new TypedInput(`runtime.ext_scratch3_operators._random(${this.descendInput(node.low).asUnknown()}, ${this.descendInput(node.high).asUnknown()})`, ValueType.NUMBER);
-        case ReporterOpcode.OP_ROUND:
+        case InputOpcode.OP_ROUND:
             return new TypedInput(`Math.round(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
-        case ReporterOpcode.OP_SIN:
+        case InputOpcode.OP_SIN:
             return new TypedInput(`(Math.round(Math.sin((Math.PI * ${this.descendInput(node.value).asNumber()}) / 180) * 1e10) / 1e10)`, ValueType.NUMBER);
-        case ReporterOpcode.OP_SQRT:
+        case InputOpcode.OP_SQRT:
             // Needs to be marked as NaN because Math.sqrt(-1) === NaN
             return new TypedInput(`Math.sqrt(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_SUBTRACT:
+        case InputOpcode.OP_SUBTRACT:
             // Needs to be marked as NaN because Infinity - Infinity === NaN
             return new TypedInput(`(${this.descendInput(node.left).asNumber()} - ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
-        case ReporterOpcode.OP_TAN:
+        case InputOpcode.OP_TAN:
             return new TypedInput(`tan(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
-        case ReporterOpcode.OP_POW_10:
+        case InputOpcode.OP_POW_10:
             return new TypedInput(`(10 ** ${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
 
-        case ReporterOpcode.SENSING_ANSWER:
+        case InputOpcode.SENSING_ANSWER:
             return new TypedInput(`runtime.ext_scratch3_sensing._answer`, ValueType.STRING);
-        case ReporterOpcode.SENSING_COLOR_TOUCHING_COLOR:
+        case InputOpcode.SENSING_COLOR_TOUCHING_COLOR:
             return new TypedInput(`target.colorIsTouchingColor(colorToList(${this.descendInput(node.target).asColor()}), colorToList(${this.descendInput(node.mask).asColor()}))`, ValueType.BOOLEAN);
-        case ReporterOpcode.SENSING_TIME_DATE:
+        case InputOpcode.SENSING_TIME_DATE:
             return new TypedInput(`(new Date().getDate())`, ValueType.NUMBER);
-        case ReporterOpcode.SENSING_TIME_WEEKDAY:
+        case InputOpcode.SENSING_TIME_WEEKDAY:
             return new TypedInput(`(new Date().getDay() + 1)`, ValueType.NUMBER);
-        case ReporterOpcode.SENSING_TIME_DAYS_SINCE_2000:
+        case InputOpcode.SENSING_TIME_DAYS_SINCE_2000:
             return new TypedInput('daysSince2000()', ValueType.NUMBER);
-        case ReporterOpcode.SENSING_DISTANCE:
+        case InputOpcode.SENSING_DISTANCE:
             // TODO: on stages, this can be computed at compile time
             return new TypedInput(`distance(${this.descendInput(node.target).asString()})`, ValueType.NUMBER);
-        case ReporterOpcode.SENSING_TIME_HOUR:
+        case InputOpcode.SENSING_TIME_HOUR:
             return new TypedInput(`(new Date().getHours())`, ValueType.NUMBER);
-        case ReporterOpcode.SENSING_TIME_MINUTE:
+        case InputOpcode.SENSING_TIME_MINUTE:
             return new TypedInput(`(new Date().getMinutes())`, ValueType.NUMBER);
-        case ReporterOpcode.SENSING_TIME_MONTH:
+        case InputOpcode.SENSING_TIME_MONTH:
             return new TypedInput(`(new Date().getMonth() + 1)`, ValueType.NUMBER);
-        case ReporterOpcode.SENSING_OF: {
+        case InputOpcode.SENSING_OF: {
             const object = this.descendInput(node.object).asString();
             const property = node.property;
-            if (node.object.kind === ReporterOpcode.CONSTANT) {
-                const isStage = node.object.value === '_stage_';
+            if (node.object.opcode === InputOpcode.CONSTANT) {
+                const isStage = node.object.inputs.value === '_stage_';
                 // Note that if target isn't a stage, we can't assume it exists
                 const objectReference = isStage ? 'stage' : this.evaluateOnce(`runtime.getSpriteTargetByName(${object})`);
                 if (property === 'volume') {
@@ -678,38 +679,39 @@ class JSGenerator {
             }
             return new TypedInput(`runtime.ext_scratch3_sensing.getAttributeOf({OBJECT: ${object}, PROPERTY: "${sanitize(property)}" })`, ValueType.UNKNOWN);
         }
-        case ReporterOpcode.SENSING_TIME_SECOND:
+        case InputOpcode.SENSING_TIME_SECOND:
             return new TypedInput(`(new Date().getSeconds())`, ValueType.NUMBER);
-        case ReporterOpcode.SENSING_TOUCHING_OBJECT:
+        case InputOpcode.SENSING_TOUCHING_OBJECT:
             return new TypedInput(`target.isTouchingObject(${this.descendInput(node.object).asUnknown()})`, ValueType.BOOLEAN);
-        case ReporterOpcode.SENSING_TOUCHING_COLOR:
+        case InputOpcode.SENSING_TOUCHING_COLOR:
             return new TypedInput(`target.isTouchingColor(colorToList(${this.descendInput(node.color).asColor()}))`, ValueType.BOOLEAN);
-        case ReporterOpcode.SENSING_USERNAME:
+        case InputOpcode.SENSING_USERNAME:
             return new TypedInput('runtime.ioDevices.userData.getUsername()', ValueType.STRING);
-        case ReporterOpcode.SENSING_TIME_YEAR:
+        case InputOpcode.SENSING_TIME_YEAR:
             return new TypedInput(`(new Date().getFullYear())`, ValueType.NUMBER);
 
-        case ReporterOpcode.SENSING_TIMER_GET:
+        case InputOpcode.SENSING_TIMER_GET:
             return new TypedInput('runtime.ioDevices.clock.projectTimer()', ValueType.NUMBER);
 
-        case ReporterOpcode.TW_KEY_LAST_PRESSED:
+        case InputOpcode.TW_KEY_LAST_PRESSED:
             return new TypedInput('runtime.ioDevices.keyboard.getLastKeyPressed()', ValueType.STRING);
 
-        case ReporterOpcode.VAR_GET:
+        case InputOpcode.VAR_GET:
             return this.descendVariable(node.variable);
 
         default:
-            log.warn(`JS: Unknown input: ${node.kind}`, node);
-            throw new Error(`JS: Unknown input: ${node.kind}`);
+            log.warn(`JS: Unknown input: ${block.opcode}`, node);
+            throw new Error(`JS: Unknown input: ${block.opcode}`);
         }
     }
 
     /**
-     * @param {*} node Stacked node to compile.
+     * @param {IntermediateStack} block Stacked block to compile.
      */
-    descendStackedBlock (node) {
-        switch (node.kind) {
-        case BlockOpcode.ADDON_CALL: {
+    descendStackedBlock (block) {
+        const node = block.inputs;
+        switch (block.opcode) {
+        case StackOpcode.ADDON_CALL: {
             const inputs = this.descendInputRecord(node.arguments);
             const blockFunction = `runtime.getAddonBlock("${sanitize(node.code)}").callback`;
             const blockId = `"${sanitize(node.blockId)}"`;
@@ -717,50 +719,28 @@ class JSGenerator {
             break;
         }
 
-        case BlockOpcode.COMPATIBILITY_LAYER: {
+        case StackOpcode.COMPATIBILITY_LAYER: {
             // If the last command in a loop returns a promise, immediately continue to the next iteration.
             // If you don't do this, the loop effectively yields twice per iteration and will run at half-speed.
             const isLastInLoop = this.isLastBlockInLoop();
-
-            const blockType = node.blockType;
-            if (blockType === BlockType.COMMAND || blockType === BlockType.HAT) {
-                this.source += `${this.generateCompatibilityLayerCall(node, isLastInLoop)};\n`;
-            } else if (blockType === BlockType.CONDITIONAL || blockType === BlockType.LOOP) {
-                const branchVariable = this.localVariables.next();
-                this.source += `const ${branchVariable} = createBranchInfo(${blockType === BlockType.LOOP});\n`;
-                this.source += `while (${branchVariable}.branch = +(${this.generateCompatibilityLayerCall(node, false, branchVariable)})) {\n`;
-                this.source += `switch (${branchVariable}.branch) {\n`;
-                for (const index in node.substacks) {
-                    this.source += `case ${+index}: {\n`;
-                    this.descendStack(node.substacks[index], new Frame(false));
-                    this.source += `break;\n`;
-                    this.source += `}\n`; // close case
-                }
-                this.source += '}\n'; // close switch
-                this.source += `if (!${branchVariable}.isLoop) break;\n`;
-                this.yieldLoop();
-                this.source += '}\n'; // close while
-            } else {
-                throw new Error(`Unknown block type: ${blockType}`);
-            }
-
+            this.source += `${this.generateCompatibilityLayerCall(block, isLastInLoop)};\n`;
             if (isLastInLoop) {
                 this.source += 'if (hasResumedFromPromise) {hasResumedFromPromise = false;continue;}\n';
             }
             break;
         }
 
-        case BlockOpcode.CONTROL_CLONE_CREATE:
+        case StackOpcode.CONTROL_CLONE_CREATE:
             this.source += `runtime.ext_scratch3_control._createClone(${this.descendInput(node.target).asString()}, target);\n`;
             break;
-        case BlockOpcode.CONTROL_CLONE_DELETE:
+        case StackOpcode.CONTROL_CLONE_DELETE:
             this.source += 'if (!target.isOriginal) {\n';
             this.source += '  runtime.disposeTarget(target);\n';
             this.source += '  runtime.stopForTarget(target);\n';
             this.retire();
             this.source += '}\n';
             break;
-        case BlockOpcode.CONTROL_FOR: {
+        case StackOpcode.CONTROL_FOR: {
             this.resetVariableInputs();
             const index = this.localVariables.next();
             this.source += `var ${index} = 0; `;
@@ -772,7 +752,7 @@ class JSGenerator {
             this.source += '}\n';
             break;
         }
-        case BlockOpcode.CONTROL_IF_ELSE:
+        case StackOpcode.CONTROL_IF_ELSE:
             this.source += `if (${this.descendInput(node.condition).asBoolean()}) {\n`;
             this.descendStack(node.whenTrue, new Frame(false));
             // only add the else branch if it won't be empty
@@ -783,7 +763,7 @@ class JSGenerator {
             }
             this.source += `}\n`;
             break;
-        case BlockOpcode.CONTROL_REPEAT: {
+        case StackOpcode.CONTROL_REPEAT: {
             const i = this.localVariables.next();
             this.source += `for (var ${i} = ${this.descendInput(node.times).asNumber()}; ${i} >= 0.5; ${i}--) {\n`;
             this.descendStack(node.do, new Frame(true));
@@ -791,21 +771,21 @@ class JSGenerator {
             this.source += `}\n`;
             break;
         }
-        case BlockOpcode.CONTROL_STOP_ALL:
+        case StackOpcode.CONTROL_STOP_ALL:
             this.source += 'runtime.stopAll();\n';
             this.retire();
             break;
-        case BlockOpcode.CONTROL_STOP_OTHERS:
+        case StackOpcode.CONTROL_STOP_OTHERS:
             this.source += 'runtime.stopForTarget(target, thread);\n';
             break;
-        case BlockOpcode.CONTROL_STOP_SCRIPT:
+        case StackOpcode.CONTROL_STOP_SCRIPT:
             if (this.isProcedure) {
                 this.source += 'return;\n';
             } else {
                 this.retire();
             }
             break;
-        case BlockOpcode.CONTROL_WAIT: {
+        case StackOpcode.CONTROL_WAIT: {
             const duration = this.localVariables.next();
             this.source += `thread.timer = timer();\n`;
             this.source += `var ${duration} = Math.max(0, 1000 * ${this.descendInput(node.seconds).asNumber()});\n`;
@@ -818,14 +798,14 @@ class JSGenerator {
             this.source += 'thread.timer = null;\n';
             break;
         }
-        case BlockOpcode.CONTROL_WAIT_UNTIL: {
+        case StackOpcode.CONTROL_WAIT_UNTIL: {
             this.resetVariableInputs();
             this.source += `while (!${this.descendInput(node.condition).asBoolean()}) {\n`;
             this.yieldStuckOrNotWarp();
             this.source += `}\n`;
             break;
         }
-        case BlockOpcode.CONTROL_WHILE:
+        case StackOpcode.CONTROL_WHILE:
             this.resetVariableInputs();
             this.source += `while (${this.descendInput(node.condition).asBoolean()}) {\n`;
             this.descendStack(node.do, new Frame(true));
@@ -837,22 +817,22 @@ class JSGenerator {
             this.source += `}\n`;
             break;
 
-        case BlockOpcode.EVENT_BROADCAST:
+        case StackOpcode.EVENT_BROADCAST:
             this.source += `startHats("event_whenbroadcastreceived", { BROADCAST_OPTION: ${this.descendInput(node.broadcast).asString()} });\n`;
             this.resetVariableInputs();
             break;
-        case BlockOpcode.EVENT_BROADCAST_AND_WAIT:
+        case StackOpcode.EVENT_BROADCAST_AND_WAIT:
             this.source += `yield* waitThreads(startHats("event_whenbroadcastreceived", { BROADCAST_OPTION: ${this.descendInput(node.broadcast).asString()} }));\n`;
             this.yielded();
             break;
 
-        case BlockOpcode.LIST_ADD: {
+        case StackOpcode.LIST_ADD: {
             const list = this.referenceVariable(node.list);
             this.source += `${list}.value.push(${this.descendInput(node.item).asSafe()});\n`;
             this.source += `${list}._monitorUpToDate = false;\n`;
             break;
         }
-        case BlockOpcode.LIST_DELETE: {
+        case StackOpcode.LIST_DELETE: {
             const list = this.referenceVariable(node.list);
             const index = this.descendInput(node.index);
             if (index instanceof ConstantInput) {
@@ -871,13 +851,13 @@ class JSGenerator {
             this.source += `listDelete(${list}, ${index.asUnknown()});\n`;
             break;
         }
-        case BlockOpcode.LIST_DELETE_ALL:
+        case StackOpcode.LIST_DELETE_ALL:
             this.source += `${this.referenceVariable(node.list)}.value = [];\n`;
             break;
-        case BlockOpcode.LIST_HIDE:
+        case StackOpcode.LIST_HIDE:
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.list.id)}", element: "checkbox", value: false }, runtime);\n`;
             break;
-        case BlockOpcode.LIST_INSERT: {
+        case StackOpcode.LIST_INSERT: {
             const list = this.referenceVariable(node.list);
             const index = this.descendInput(node.index);
             const item = this.descendInput(node.item);
@@ -889,91 +869,91 @@ class JSGenerator {
             this.source += `listInsert(${list}, ${index.asUnknown()}, ${item.asSafe()});\n`;
             break;
         }
-        case BlockOpcode.LIST_REPLACE:
+        case StackOpcode.LIST_REPLACE:
             this.source += `listReplace(${this.referenceVariable(node.list)}, ${this.descendInput(node.index).asUnknown()}, ${this.descendInput(node.item).asSafe()});\n`;
             break;
-        case BlockOpcode.LIST_SHOW:
+        case StackOpcode.LIST_SHOW:
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.list.id)}", element: "checkbox", value: true }, runtime);\n`;
             break;
 
-        case BlockOpcode.LOOKS_LAYER_BACKWARD:
+        case StackOpcode.LOOKS_LAYER_BACKWARD:
             if (!this.target.isStage) {
                 this.source += `target.goBackwardLayers(${this.descendInput(node.layers).asNumber()});\n`;
             }
             break;
-        case BlockOpcode.LOOKS_EFFECT_CLEAR:
+        case StackOpcode.LOOKS_EFFECT_CLEAR:
             this.source += 'target.clearEffects();\n';
             break;
-        case BlockOpcode.LOOKS_EFFECT_CHANGE:
+        case StackOpcode.LOOKS_EFFECT_CHANGE:
             if (this.target.effects.hasOwnProperty(node.effect)) {
                 this.source += `target.setEffect("${sanitize(node.effect)}", runtime.ext_scratch3_looks.clampEffect("${sanitize(node.effect)}", ${this.descendInput(node.value).asNumber()} + target.effects["${sanitize(node.effect)}"]));\n`;
             }
             break;
-        case BlockOpcode.LOOKS_SIZE_CHANGE:
+        case StackOpcode.LOOKS_SIZE_CHANGE:
             this.source += `target.setSize(target.size + ${this.descendInput(node.size).asNumber()});\n`;
             break;
-        case BlockOpcode.LOOKS_LAYER_FORWARD:
+        case StackOpcode.LOOKS_LAYER_FORWARD:
             if (!this.target.isStage) {
                 this.source += `target.goForwardLayers(${this.descendInput(node.layers).asNumber()});\n`;
             }
             break;
-        case BlockOpcode.LOOKS_LAYER_BACK:
+        case StackOpcode.LOOKS_LAYER_BACK:
             if (!this.target.isStage) {
                 this.source += 'target.goToBack();\n';
             }
             break;
-        case BlockOpcode.LOOKS_LAYER_FRONT:
+        case StackOpcode.LOOKS_LAYER_FRONT:
             if (!this.target.isStage) {
                 this.source += 'target.goToFront();\n';
             }
             break;
-        case BlockOpcode.LOOKS_HIDE:
+        case StackOpcode.LOOKS_HIDE:
             this.source += 'target.setVisible(false);\n';
             this.source += 'runtime.ext_scratch3_looks._renderBubble(target);\n';
             break;
-        case BlockOpcode.LOOKS_BACKDROP_NEXT:
+        case StackOpcode.LOOKS_BACKDROP_NEXT:
             this.source += 'runtime.ext_scratch3_looks._setBackdrop(stage, stage.currentCostume + 1, true);\n';
             break;
-        case BlockOpcode.LOOKS_COSTUME_NEXT:
+        case StackOpcode.LOOKS_COSTUME_NEXT:
             this.source += 'target.setCostume(target.currentCostume + 1);\n';
             break;
-        case BlockOpcode.LOOKS_EFFECT_SET:
+        case StackOpcode.LOOKS_EFFECT_SET:
             if (this.target.effects.hasOwnProperty(node.effect)) {
                 this.source += `target.setEffect("${sanitize(node.effect)}", runtime.ext_scratch3_looks.clampEffect("${sanitize(node.effect)}", ${this.descendInput(node.value).asNumber()}));\n`;
             }
             break;
-        case BlockOpcode.LOOKS_SIZE_SET:
+        case StackOpcode.LOOKS_SIZE_SET:
             this.source += `target.setSize(${this.descendInput(node.size).asNumber()});\n`;
             break;
-        case BlockOpcode.LOOKS_SHOW:
+        case StackOpcode.LOOKS_SHOW:
             this.source += 'target.setVisible(true);\n';
             this.source += 'runtime.ext_scratch3_looks._renderBubble(target);\n';
             break;
-        case BlockOpcode.LOOKS_BACKDROP_SET:
+        case StackOpcode.LOOKS_BACKDROP_SET:
             this.source += `runtime.ext_scratch3_looks._setBackdrop(stage, ${this.descendInput(node.backdrop).asSafe()});\n`;
             break;
-        case BlockOpcode.LOOKS_COSTUME_SET:
+        case StackOpcode.LOOKS_COSTUME_SET:
             this.source += `runtime.ext_scratch3_looks._setCostume(target, ${this.descendInput(node.costume).asSafe()});\n`;
             break;
 
-        case BlockOpcode.MOTION_X_CHANGE:
+        case StackOpcode.MOTION_X_CHANGE:
             this.source += `target.setXY(target.x + ${this.descendInput(node.dx).asNumber()}, target.y);\n`;
             break;
-        case BlockOpcode.MOTION_Y_CHANGE:
+        case StackOpcode.MOTION_Y_CHANGE:
             this.source += `target.setXY(target.x, target.y + ${this.descendInput(node.dy).asNumber()});\n`;
             break;
-        case BlockOpcode.MOTION_IF_ON_EDGE_BOUNCE:
+        case StackOpcode.MOTION_IF_ON_EDGE_BOUNCE:
             this.source += `runtime.ext_scratch3_motion._ifOnEdgeBounce(target);\n`;
             break;
-        case BlockOpcode.MOTION_DIRECTION_SET:
+        case StackOpcode.MOTION_DIRECTION_SET:
             this.source += `target.setDirection(${this.descendInput(node.direction).asNumber()});\n`;
             break;
-        case BlockOpcode.MOTION_ROTATION_STYLE_SET:
+        case StackOpcode.MOTION_ROTATION_STYLE_SET:
             this.source += `target.setRotationStyle("${sanitize(node.style)}");\n`;
             break;
-        case BlockOpcode.MOTION_X_SET: // fallthrough
-        case BlockOpcode.MOTION_Y_SET: // fallthrough
-        case BlockOpcode.MOTION_XY_SET: {
+        case StackOpcode.MOTION_X_SET: // fallthrough
+        case StackOpcode.MOTION_Y_SET: // fallthrough
+        case StackOpcode.MOTION_XY_SET: {
             this.descendedIntoModulo = false;
             const x = 'x' in node ? this.descendInput(node.x).asNumber() : 'target.x';
             const y = 'y' in node ? this.descendInput(node.y).asNumber() : 'target.y';
@@ -983,55 +963,55 @@ class JSGenerator {
             }
             break;
         }
-        case BlockOpcode.MOTION_STEP:
+        case StackOpcode.MOTION_STEP:
             this.source += `runtime.ext_scratch3_motion._moveSteps(${this.descendInput(node.steps).asNumber()}, target);\n`;
             break;
 
-        case BlockOpcode.NOP:
+        case StackOpcode.NOP:
             // todo: remove noop entirely
             break;
 
-        case BlockOpcode.PEN_CLEAR:
+        case StackOpcode.PEN_CLEAR:
             this.source += `${PEN_EXT}.clear();\n`;
             break;
-        case BlockOpcode.PEN_DOWN:
+        case StackOpcode.PEN_DOWN:
             this.source += `${PEN_EXT}._penDown(target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_PARAM_CHANGE:
+        case StackOpcode.PEN_COLOR_PARAM_CHANGE:
             this.source += `${PEN_EXT}._setOrChangeColorParam(${this.descendInput(node.param).asString()}, ${this.descendInput(node.value).asNumber()}, ${PEN_STATE}, true);\n`;
             break;
-        case BlockOpcode.PEN_SIZE_CHANGE:
+        case StackOpcode.PEN_SIZE_CHANGE:
             this.source += `${PEN_EXT}._changePenSizeBy(${this.descendInput(node.size).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGACY:
+        case StackOpcode.PEN_COLOR_HUE_CHANGE_LEGACY:
             this.source += `${PEN_EXT}._changePenHueBy(${this.descendInput(node.hue).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_SHADE_CHANGE_LEGACY:
+        case StackOpcode.PEN_COLOR_SHADE_CHANGE_LEGACY:
             this.source += `${PEN_EXT}._changePenShadeBy(${this.descendInput(node.shade).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_HUE_SET_LEGACY:
+        case StackOpcode.PEN_COLOR_HUE_SET_LEGACY:
             this.source += `${PEN_EXT}._setPenHueToNumber(${this.descendInput(node.hue).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGACY:
+        case StackOpcode.PEN_COLOR_HUE_CHANGE_LEGACY:
             this.source += `${PEN_EXT}._setPenShadeToNumber(${this.descendInput(node.shade).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_SET:
+        case StackOpcode.PEN_COLOR_SET:
             this.source += `${PEN_EXT}._setPenColorToColor(${this.descendInput(node.color).asColor()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_PARAM_SET:
+        case StackOpcode.PEN_COLOR_PARAM_SET:
             this.source += `${PEN_EXT}._setOrChangeColorParam(${this.descendInput(node.param).asString()}, ${this.descendInput(node.value).asNumber()}, ${PEN_STATE}, false);\n`;
             break;
-        case BlockOpcode.PEN_SIZE_SET:
+        case StackOpcode.PEN_SIZE_SET:
             this.source += `${PEN_EXT}._setPenSizeTo(${this.descendInput(node.size).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_STAMP:
+        case StackOpcode.PEN_STAMP:
             this.source += `${PEN_EXT}._stamp(target);\n`;
             break;
-        case BlockOpcode.PEN_UP:
+        case StackOpcode.PEN_UP:
             this.source += `${PEN_EXT}._penUp(target);\n`;
             break;
 
-        case BlockOpcode.PROCEDURE_CALL: {
+        case StackOpcode.PROCEDURE_CALL: {
             const procedureCode = node.code;
             const procedureVariant = node.variant;
             const procedureData = this.ir.procedures[procedureVariant];
@@ -1063,18 +1043,18 @@ class JSGenerator {
             this.stopScriptAndReturn(this.descendInput(node.value).asSafe());
             break;
 
-        case BlockOpcode.SENSING_TIMER_RESET:
+        case StackOpcode.SENSING_TIMER_RESET:
             this.source += 'runtime.ioDevices.clock.resetProjectTimer();\n';
             break;
 
-        case BlockOpcode.DEBUGGER:
+        case StackOpcode.DEBUGGER:
             this.source += 'debugger;\n';
             break;
 
-        case BlockOpcode.VAR_HIDE:
+        case StackOpcode.VAR_HIDE:
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.variable.id)}", element: "checkbox", value: false }, runtime);\n`;
             break;
-        case BlockOpcode.VAR_SET: {
+        case StackOpcode.VAR_SET: {
             const variable = this.descendVariable(node.variable);
             const value = this.descendInput(node.value);
             variable.setInput(value);
@@ -1084,11 +1064,11 @@ class JSGenerator {
             }
             break;
         }
-        case BlockOpcode.VAR_SHOW:
+        case StackOpcode.VAR_SHOW:
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.variable.id)}", element: "checkbox", value: true }, runtime);\n`;
             break;
 
-        case BlockOpcode.VISUAL_REPORT: {
+        case StackOpcode.VISUAL_REPORT: {
             const value = this.localVariables.next();
             this.source += `const ${value} = ${this.descendInput(node.input).asUnknown()};`;
             // blocks like legacy no-ops can return a literal `undefined`
@@ -1097,8 +1077,8 @@ class JSGenerator {
         }
 
         default:
-            log.warn(`JS: Unknown stacked block: ${node.kind}`, node);
-            throw new Error(`JS: Unknown stacked block: ${node.kind}`);
+            log.warn(`JS: Unknown stacked block: ${block.opcode}`, node);
+            throw new Error(`JS: Unknown stacked block: ${block.opcode}`);
         }
     }
 
@@ -1252,12 +1232,13 @@ class JSGenerator {
 
     /**
      * Generate a call into the compatibility layer.
-     * @param {*} node The "compat" kind node to generate from.
+     * @param {IntermediateStack} block The block to generate from.
      * @param {boolean} setFlags Whether flags should be set describing how this function was processed.
      * @param {string|null} [frameName] Name of the stack frame variable, if any
      * @returns {string} The JS of the call.
      */
-    generateCompatibilityLayerCall (node, setFlags, frameName = null) {
+    generateCompatibilityLayerCall (block, setFlags) {
+        const node = block.inputs;
         const opcode = node.opcode;
 
         let result = 'yield* executeInCompatibilityLayer({';
