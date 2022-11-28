@@ -14,7 +14,7 @@ const ValueType = {
     BOOLEAN: 3,
     UNKNOWN: 4,
     NUMBER_OR_NAN: 5,
-}
+};
 
 /**
  * Enum for the opcodes of the stackable blocks used in the IR AST.
