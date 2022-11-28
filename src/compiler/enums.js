@@ -108,7 +108,7 @@ const BlockOpcode = {
  * @enum {string}
  */
 const ReporterOpcode = {
-    CONSTANT: "contant",
+    CONSTANT: "constant",
 
     LOOKS_BACKDROP_NUMBER: "looks.backdropNumber",
     LOOKS_BACKDROP_NAME: "looks.backdropName",
