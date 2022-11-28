@@ -427,10 +427,10 @@ class JSGenerator {
         switch (node.kind) {
         case ReporterOpcode.PROCEDURE_ARG_BOOLEAN:
             return new TypedInput(`toBoolean(p${node.index})`, ValueType.BOOLEAN);
-        case ReporterOpcode.PROCEDURE_ARG_ROUND:
+        case ReporterOpcode.PROCEDURE_ARG_STRING_NUMBER:
             return new TypedInput(`p${node.index}`, ValueType.UNKNOWN);
 
-        case ReporterOpcode.TW_COMPATIBILITY_LAYER:
+        case ReporterOpcode.COMPATIBILITY_LAYER:
             // Compatibility layer inputs never use flags.
             return new TypedInput(`(${this.generateCompatibilityLayerCall(node, false)})`, ValueType.UNKNOWN);
 
@@ -709,14 +709,15 @@ class JSGenerator {
      */
     descendStackedBlock (node) {
         switch (node.kind) {
-        case BlockOpcode.TW_ADDON_CALL: {
+        case BlockOpcode.ADDON_CALL: {
             const inputs = this.descendInputRecord(node.arguments);
             const blockFunction = `runtime.getAddonBlock("${sanitize(node.code)}").callback`;
             const blockId = `"${sanitize(node.blockId)}"`;
             this.source += `yield* executeInCompatibilityLayer(${inputs}, ${blockFunction}, ${this.isWarp}, false, ${blockId});\n`;
             break;
         }
-        case BlockOpcode.TW_COMPATIBILITY_LAYER: {
+
+        case BlockOpcode.COMPATIBILITY_LAYER: {
             // If the last command in a loop returns a promise, immediately continue to the next iteration.
             // If you don't do this, the loop effectively yields twice per iteration and will run at half-speed.
             const isLastInLoop = this.isLastBlockInLoop();
@@ -1066,7 +1067,7 @@ class JSGenerator {
             this.source += 'runtime.ioDevices.clock.resetProjectTimer();\n';
             break;
 
-        case BlockOpcode.TW_DEBUGGER:
+        case BlockOpcode.DEBUGGER:
             this.source += 'debugger;\n';
             break;
 
@@ -1087,7 +1088,7 @@ class JSGenerator {
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.variable.id)}", element: "checkbox", value: true }, runtime);\n`;
             break;
 
-        case BlockOpcode.TW_VISUAL_REPORT: {
+        case BlockOpcode.VISUAL_REPORT: {
             const value = this.localVariables.next();
             this.source += `const ${value} = ${this.descendInput(node.input).asUnknown()};`;
             // blocks like legacy no-ops can return a literal `undefined`

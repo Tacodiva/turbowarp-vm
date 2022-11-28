@@ -202,7 +202,7 @@ class ScriptTreeGenerator {
                 };
             }
             return {
-                kind: ReporterOpcode.PROCEDURE_ARG_ROUND,
+                kind: ReporterOpcode.PROCEDURE_ARG_STRING_NUMBER,
                 index: index
             };
         }
@@ -1132,7 +1132,7 @@ class ScriptTreeGenerator {
             }
             if (procedureCode === 'tw:debugger;') {
                 return {
-                    kind: BlockOpcode.TW_DEBUGGER
+                    kind: BlockOpcode.DEBUGGER
                 };
             }
             const paramNamesIdsAndDefaults = this.blocks.getProcedureParamNamesIdsAndDefaults(procedureCode);
@@ -1161,7 +1161,7 @@ class ScriptTreeGenerator {
                     args[paramNames[i]] = value;
                 }
                 return {
-                    kind: BlockOpcode.TW_ADDON_CALL,
+                    kind: BlockOpcode.ADDON_CALL,
                     code: procedureCode,
                     arguments: args,
                     blockId: block.id
@@ -1257,7 +1257,7 @@ class ScriptTreeGenerator {
                 try {
                     const inputNode = this.descendInput(block);
                     return {
-                        kind: BlockOpcode.TW_VISUAL_REPORT,
+                        kind: BlockOpcode.VISUAL_REPORT,
                         input: inputNode
                     };
                 } catch (e) {
@@ -1522,7 +1522,7 @@ class ScriptTreeGenerator {
         }
 
         return {
-            kind: BlockOpcode.TW_COMPATIBILITY_LAYER,
+            kind: BlockOpcode.COMPATIBILITY_LAYER,
             opcode: block.opcode,
             blockType,
             inputs,

@@ -24,6 +24,11 @@ const ValueType = {
 const BlockOpcode = {
     NOP: "noop",
 
+    ADDON_CALL: "addons.call",
+    DEBUGGER: "tw.debugger",
+    VISUAL_REPORT: "visualReport",
+    COMPATIBILITY_LAYER: "compat",
+
     CONTROL_IF_ELSE: "control.if",
     CONTROL_CLONE_CREATE: "control.createClone",
     CONTROL_CLONE_DELETE: "control.deleteClone",
@@ -83,10 +88,10 @@ const BlockOpcode = {
     PEN_CLEAR: "pen.clear",
     PEN_COLOR_PARAM_SET: "pen.setParam",
     PEN_COLOR_PARAM_CHANGE: "pen.changeParam",
-    PEN_COLOR_HUE_CHANGE_LEGASY: "pen.legacyChangeHue",
-    PEN_COLOR_HUE_SET_LEGASY: "pen_setPenHueToNumber",
-    PEN_COLOR_SHADE_CHANGE_LEGASY: "pen.legacyChangeShade",
-    PEN_COLOR_SHADE_SET_LEGASY: "pen.legacySetShade",
+    PEN_COLOR_HUE_CHANGE_LEGACY: "pen.legacyChangeHue",
+    PEN_COLOR_HUE_SET_LEGACY: "pen_setPenHueToNumber",
+    PEN_COLOR_SHADE_CHANGE_LEGACY: "pen.legacyChangeShade",
+    PEN_COLOR_SHADE_SET_LEGACY: "pen.legacySetShade",
     PEN_COLOR_SET: "pen.setColor",
     PEN_SIZE_SET: "pen.setSize",
     PEN_SIZE_CHANGE: "pen.changeSize",
@@ -94,12 +99,7 @@ const BlockOpcode = {
 
     SENSING_TIMER_RESET: "timer.reset",
 
-    PROCEDURE_CALL: "procedures.call",
-
-    TW_ADDON_CALL: "addons.call",
-    TW_DEBUGGER: "tw.debugger",
-    TW_VISUAL_REPORT: "visualReport",
-    TW_COMPATIBILITY_LAYER: "compat"
+    PROCEDURE_CALL: "procedures.call"
 };
 
 /**
@@ -109,6 +109,8 @@ const BlockOpcode = {
  */
 const ReporterOpcode = {
     CONSTANT: "constant",
+
+    COMPATIBILITY_LAYER: "compat",
 
     LOOKS_BACKDROP_NUMBER: "looks.backdropNumber",
     LOOKS_BACKDROP_NAME: "looks.backdropName",
@@ -181,11 +183,10 @@ const ReporterOpcode = {
     SENSING_TOUCHING_OBJECT: "sensing.touching",
     SENSING_USERNAME: "sensing.username",
 
-    PROCEDURE_ARG_ROUND: "args.stringNumber",
+    PROCEDURE_ARG_STRING_NUMBER: "args.stringNumber",
     PROCEDURE_ARG_BOOLEAN: "args.boolean",
 
-    TW_KEY_LAST_PRESSED: "tw.lastKeyPressed",
-    TW_COMPATIBILITY_LAYER: "compat"
+    TW_KEY_LAST_PRESSED: "tw.lastKeyPressed"
 };
 
 module.exports = {
