@@ -8,7 +8,7 @@
  * @readonly
  * @enum {number}
  */
-export const ValueType = {
+const ValueType = {
     NUMBER: 1,
     STRING: 2,
     BOOLEAN: 3,
@@ -21,7 +21,7 @@ export const ValueType = {
  * @readonly
  * @enum {string}
  */
-export const BlockOpcode = {
+const BlockOpcode = {
     NOP: "noop",
 
     CONTROL_IF_ELSE: "control.if",
@@ -107,7 +107,7 @@ export const BlockOpcode = {
  * @readonly
  * @enum {string}
  */
-export const ReporterOpcode = {
+const ReporterOpcode = {
     CONSTANT: "contant",
 
     LOOKS_BACKDROP_NUMBER: "looks.backdropNumber",
@@ -186,4 +186,10 @@ export const ReporterOpcode = {
 
     TW_KEY_LAST_PRESSED: "tw.lastKeyPressed",
     TW_COMPATIBILITY_LAYER: "compat"
+};
+
+module.exports = {
+    BlockOpcode,
+    ReporterOpcode,
+    ValueType,
 };
