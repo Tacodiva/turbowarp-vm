@@ -176,7 +176,7 @@ const ReporterOpcode = {
     SENSING_KEY_DOWN: "keyboard.pressed",
     SENSING_MOUSE_DOWN: "mouse.down",
     SENSING_MOUSE_X: "mouse.x",
-    SENSING_MOUSE_Y: "mosue.y",
+    SENSING_MOUSE_Y: "mouse.y",
     SENSING_OF: "sensing.of",
     SENSING_TIMER_GET: "timer.get",
     SENSING_TOUCHING_COLOR: "sensing.touchingColor",

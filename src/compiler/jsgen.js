@@ -1003,16 +1003,16 @@ class JSGenerator {
         case BlockOpcode.PEN_SIZE_CHANGE:
             this.source += `${PEN_EXT}._changePenSizeBy(${this.descendInput(node.size).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGASY:
+        case BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGACY:
             this.source += `${PEN_EXT}._changePenHueBy(${this.descendInput(node.hue).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_SHADE_CHANGE_LEGASY:
+        case BlockOpcode.PEN_COLOR_SHADE_CHANGE_LEGACY:
             this.source += `${PEN_EXT}._changePenShadeBy(${this.descendInput(node.shade).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_HUE_SET_LEGASY:
+        case BlockOpcode.PEN_COLOR_HUE_SET_LEGACY:
             this.source += `${PEN_EXT}._setPenHueToNumber(${this.descendInput(node.hue).asNumber()}, target);\n`;
             break;
-        case BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGASY:
+        case BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGACY:
             this.source += `${PEN_EXT}._setPenShadeToNumber(${this.descendInput(node.shade).asNumber()}, target);\n`;
             break;
         case BlockOpcode.PEN_COLOR_SET:

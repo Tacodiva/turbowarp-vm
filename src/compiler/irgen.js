@@ -1070,12 +1070,12 @@ class ScriptTreeGenerator {
             };
         case 'pen_changePenHueBy':
             return {
-                kind: BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGASY,
+                kind: BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGACY,
                 hue: this.descendInputOfBlock(block, 'HUE')
             };
         case 'pen_changePenShadeBy':
             return {
-                kind: BlockOpcode.PEN_COLOR_SHADE_CHANGE_LEGASY,
+                kind: BlockOpcode.PEN_COLOR_SHADE_CHANGE_LEGACY,
                 shade: this.descendInputOfBlock(block, 'SHADE')
             };
         case 'pen_penDown':
@@ -1099,12 +1099,12 @@ class ScriptTreeGenerator {
             };
         case 'pen_setPenHueToNumber':
             return {
-                kind: BlockOpcode.PEN_COLOR_HUE_SET_LEGASY,
+                kind: BlockOpcode.PEN_COLOR_HUE_SET_LEGACY,
                 hue: this.descendInputOfBlock(block, 'HUE')
             };
         case 'pen_setPenShadeToNumber':
             return {
-                kind: BlockOpcode.PEN_COLOR_SHADE_SET_LEGASY,
+                kind: BlockOpcode.PEN_COLOR_SHADE_SET_LEGACY,
                 shade: this.descendInputOfBlock(block, 'SHADE')
             };
         case 'pen_setPenSizeTo':
