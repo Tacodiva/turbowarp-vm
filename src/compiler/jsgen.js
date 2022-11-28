@@ -4,6 +4,7 @@ const BlockType = require('../extension-support/block-type');
 const VariablePool = require('./variable-pool');
 const jsexecute = require('./jsexecute');
 const environment = require('./environment');
+const {BlockOpcode, ReporterOpcode, ValueType} = require('./enums.js')
 
 // Imported for JSDoc types, not to actually use
 // eslint-disable-next-line no-unused-vars
@@ -23,12 +24,6 @@ const sanitize = string => {
     }
     return JSON.stringify(string).slice(1, -1);
 };
-
-const TYPE_NUMBER = 1;
-const TYPE_STRING = 2;
-const TYPE_BOOLEAN = 3;
-const TYPE_UNKNOWN = 4;
-const TYPE_NUMBER_NAN = 5;
 
 // Pen-related constants
 const PEN_EXT = 'runtime.ext_pen';
@@ -75,23 +70,23 @@ class TypedInput {
     }
 
     asNumber () {
-        if (this.type === TYPE_NUMBER) return this.source;
-        if (this.type === TYPE_NUMBER_NAN) return `(${this.source} || 0)`;
+        if (this.type === ValueType.NUMBER) return this.source;
+        if (this.type === ValueType.NUMBER_OR_NAN) return `(${this.source} || 0)`;
         return `(+${this.source} || 0)`;
     }
 
     asNumberOrNaN () {
-        if (this.type === TYPE_NUMBER || this.type === TYPE_NUMBER_NAN) return this.source;
+        if (this.type === ValueType.NUMBER || this.type === ValueType.NUMBER_OR_NAN) return this.source;
         return `(+${this.source})`;
     }
 
     asString () {
-        if (this.type === TYPE_STRING) return this.source;
+        if (this.type === ValueType.STRING) return this.source;
         return `("" + ${this.source})`;
     }
 
     asBoolean () {
-        if (this.type === TYPE_BOOLEAN) return this.source;
+        if (this.type === ValueType.BOOLEAN) return this.source;
         return `toBoolean(${this.source})`;
     }
 
@@ -108,11 +103,11 @@ class TypedInput {
     }
 
     isAlwaysNumber () {
-        return this.type === TYPE_NUMBER;
+        return this.type === ValueType.NUMBER;
     }
 
     isAlwaysNumberOrNaN () {
-        return this.type === TYPE_NUMBER || this.type === TYPE_NUMBER_NAN;
+        return this.type === ValueType.NUMBER || this.type === ValueType.NUMBER_OR_NAN;
     }
 
     isNeverNumber () {
@@ -213,7 +208,7 @@ class ConstantInput {
 class VariableInput {
     constructor (source) {
         this.source = source;
-        this.type = TYPE_UNKNOWN;
+        this.type = ValueType.UNKNOWN;
         /**
          * The value this variable was most recently set to, if any.
          * @type {Input}
@@ -232,7 +227,7 @@ class VariableInput {
             if (input._value) {
                 input = input._value;
             } else {
-                this.type = TYPE_UNKNOWN;
+                this.type = ValueType.UNKNOWN;
                 this._value = null;
                 return;
             }
@@ -241,28 +236,28 @@ class VariableInput {
         if (input instanceof TypedInput) {
             this.type = input.type;
         } else {
-            this.type = TYPE_UNKNOWN;
+            this.type = ValueType.UNKNOWN;
         }
     }
 
     asNumber () {
-        if (this.type === TYPE_NUMBER) return this.source;
-        if (this.type === TYPE_NUMBER_NAN) return `(${this.source} || 0)`;
+        if (this.type === ValueType.NUMBER) return this.source;
+        if (this.type === ValueType.NUMBER_OR_NAN) return `(${this.source} || 0)`;
         return `(+${this.source} || 0)`;
     }
 
     asNumberOrNaN () {
-        if (this.type === TYPE_NUMBER || this.type === TYPE_NUMBER_NAN) return this.source;
+        if (this.type === ValueType.NUMBER || this.type === ValueType.NUMBER_OR_NAN) return this.source;
         return `(+${this.source})`;
     }
 
     asString () {
-        if (this.type === TYPE_STRING) return this.source;
+        if (this.type === ValueType.STRING) return this.source;
         return `("" + ${this.source})`;
     }
 
     asBoolean () {
-        if (this.type === TYPE_BOOLEAN) return this.source;
+        if (this.type === ValueType.BOOLEAN) return this.source;
         return `toBoolean(${this.source})`;
     }
 
@@ -430,319 +425,277 @@ class JSGenerator {
      */
     descendInput (node) {
         switch (node.kind) {
-        case 'addons.call':
-            return new TypedInput(`(${this.descendAddonCall(node)})`, TYPE_UNKNOWN);
+        case ReporterOpcode.PROCEDURE_ARG_BOOLEAN:
+            return new TypedInput(`toBoolean(p${node.index})`, ValueType.BOOLEAN);
+        case ReporterOpcode.PROCEDURE_ARG_ROUND:
+            return new TypedInput(`p${node.index}`, ValueType.UNKNOWN);
 
-        case 'args.boolean':
-            return new TypedInput(`toBoolean(p${node.index})`, TYPE_BOOLEAN);
-        case 'args.stringNumber':
-            return new TypedInput(`p${node.index}`, TYPE_UNKNOWN);
-
-        case 'compat':
+        case ReporterOpcode.TW_COMPATIBILITY_LAYER:
             // Compatibility layer inputs never use flags.
-            return new TypedInput(`(${this.generateCompatibilityLayerCall(node, false)})`, TYPE_UNKNOWN);
+            return new TypedInput(`(${this.generateCompatibilityLayerCall(node, false)})`, ValueType.UNKNOWN);
 
-        case 'constant':
+        case ReporterOpcode.CONSTANT:
             return this.safeConstantInput(node.value);
 
-        case 'counter.get':
-            return new TypedInput('runtime.ext_scratch3_control._counter', TYPE_NUMBER);
+        case ReporterOpcode.SENSING_KEY_DOWN:
+            return new TypedInput(`runtime.ioDevices.keyboard.getKeyIsDown(${this.descendInput(node.key).asSafe()})`, ValueType.BOOLEAN);
 
-        case 'keyboard.pressed':
-            return new TypedInput(`runtime.ioDevices.keyboard.getKeyIsDown(${this.descendInput(node.key).asSafe()})`, TYPE_BOOLEAN);
-
-        case 'list.contains':
-            return new TypedInput(`listContains(${this.referenceVariable(node.list)}, ${this.descendInput(node.item).asUnknown()})`, TYPE_BOOLEAN);
-        case 'list.contents':
-            return new TypedInput(`listContents(${this.referenceVariable(node.list)})`, TYPE_STRING);
-        case 'list.get': {
+        case ReporterOpcode.LIST_CONTAINS:
+            return new TypedInput(`listContains(${this.referenceVariable(node.list)}, ${this.descendInput(node.item).asUnknown()})`, ValueType.BOOLEAN);
+        case ReporterOpcode.LIST_CONTENTS:
+            return new TypedInput(`listContents(${this.referenceVariable(node.list)})`, ValueType.STRING);
+        case ReporterOpcode.LIST_GET: {
             const index = this.descendInput(node.index);
             if (environment.supportsNullishCoalescing) {
                 if (index.isAlwaysNumberOrNaN()) {
-                    return new TypedInput(`(${this.referenceVariable(node.list)}.value[(${index.asNumber()} | 0) - 1] ?? "")`, TYPE_UNKNOWN);
+                    return new TypedInput(`(${this.referenceVariable(node.list)}.value[(${index.asNumber()} | 0) - 1] ?? "")`, ValueType.UNKNOWN);
                 }
                 if (index instanceof ConstantInput && index.constantValue === 'last') {
-                    return new TypedInput(`(${this.referenceVariable(node.list)}.value[${this.referenceVariable(node.list)}.value.length - 1] ?? "")`, TYPE_UNKNOWN);
+                    return new TypedInput(`(${this.referenceVariable(node.list)}.value[${this.referenceVariable(node.list)}.value.length - 1] ?? "")`, ValueType.UNKNOWN);
                 }
             }
-            return new TypedInput(`listGet(${this.referenceVariable(node.list)}.value, ${index.asUnknown()})`, TYPE_UNKNOWN);
+            return new TypedInput(`listGet(${this.referenceVariable(node.list)}.value, ${index.asUnknown()})`, ValueType.UNKNOWN);
         }
-        case 'list.indexOf':
-            return new TypedInput(`listIndexOf(${this.referenceVariable(node.list)}, ${this.descendInput(node.item).asUnknown()})`, TYPE_NUMBER);
-        case 'list.length':
-            return new TypedInput(`${this.referenceVariable(node.list)}.value.length`, TYPE_NUMBER);
+        case ReporterOpcode.LIST_INDEX_OF:
+            return new TypedInput(`listIndexOf(${this.referenceVariable(node.list)}, ${this.descendInput(node.item).asUnknown()})`, ValueType.NUMBER);
+        case ReporterOpcode.LIST_LENGTH:
+            return new TypedInput(`${this.referenceVariable(node.list)}.value.length`, ValueType.NUMBER);
 
-        case 'looks.size':
-            return new TypedInput('Math.round(target.size)', TYPE_NUMBER);
-        case 'looks.backdropName':
-            return new TypedInput('stage.getCostumes()[stage.currentCostume].name', TYPE_STRING);
-        case 'looks.backdropNumber':
-            return new TypedInput('(stage.currentCostume + 1)', TYPE_NUMBER);
-        case 'looks.costumeName':
-            return new TypedInput('target.getCostumes()[target.currentCostume].name', TYPE_STRING);
-        case 'looks.costumeNumber':
-            return new TypedInput('(target.currentCostume + 1)', TYPE_NUMBER);
+        case ReporterOpcode.LOOKS_SIZE_GET:
+            return new TypedInput('Math.round(target.size)', ValueType.NUMBER);
+        case ReporterOpcode.LOOKS_BACKDROP_NAME:
+            return new TypedInput('stage.getCostumes()[stage.currentCostume].name', ValueType.STRING);
+        case ReporterOpcode.LOOKS_BACKDROP_NUMBER:
+            return new TypedInput('(stage.currentCostume + 1)', ValueType.NUMBER);
+        case ReporterOpcode.LOOKS_COSTUME_NAME:
+            return new TypedInput('target.getCostumes()[target.currentCostume].name', ValueType.STRING);
+        case ReporterOpcode.LOOKS_COSTUME_NUMBER:
+            return new TypedInput('(target.currentCostume + 1)', ValueType.NUMBER);
 
-        case 'motion.direction':
-            return new TypedInput('target.direction', TYPE_NUMBER);
-        case 'motion.x':
-            return new TypedInput('limitPrecision(target.x)', TYPE_NUMBER);
-        case 'motion.y':
-            return new TypedInput('limitPrecision(target.y)', TYPE_NUMBER);
+        case ReporterOpcode.MOTION_DIRECTION_GET:
+            return new TypedInput('target.direction', ValueType.NUMBER);
+        case ReporterOpcode.MOTION_X_GET:
+            return new TypedInput('limitPrecision(target.x)', ValueType.NUMBER);
+        case ReporterOpcode.MOTION_Y_GET:
+            return new TypedInput('limitPrecision(target.y)', ValueType.NUMBER);
 
-        case 'mouse.down':
-            return new TypedInput('runtime.ioDevices.mouse.getIsDown()', TYPE_BOOLEAN);
-        case 'mouse.x':
-            return new TypedInput('runtime.ioDevices.mouse.getScratchX()', TYPE_NUMBER);
-        case 'mouse.y':
-            return new TypedInput('runtime.ioDevices.mouse.getScratchY()', TYPE_NUMBER);
+        case ReporterOpcode.SENSING_MOUSE_DOWN:
+            return new TypedInput('runtime.ioDevices.mouse.getIsDown()', ValueType.BOOLEAN);
+        case ReporterOpcode.SENSING_MOUSE_X:
+            return new TypedInput('runtime.ioDevices.mouse.getScratchX()', ValueType.NUMBER);
+        case ReporterOpcode.SENSING_MOUSE_Y:
+            return new TypedInput('runtime.ioDevices.mouse.getScratchY()', ValueType.NUMBER);
 
-        case 'noop':
-            return new TypedInput('""', TYPE_STRING);
-
-        case 'op.abs':
-            return new TypedInput(`Math.abs(${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER);
-        case 'op.acos':
+        case ReporterOpcode.OP_ABS:
+            return new TypedInput(`Math.abs(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
+        case ReporterOpcode.OP_ACOS:
             // Needs to be marked as NaN because Math.acos(1.0001) === NaN
-            return new TypedInput(`((Math.acos(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, TYPE_NUMBER_NAN);
-        case 'op.add':
+            return new TypedInput(`((Math.acos(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_ADD:
             // Needs to be marked as NaN because Infinity + -Infinity === NaN
-            return new TypedInput(`(${this.descendInput(node.left).asNumber()} + ${this.descendInput(node.right).asNumber()})`, TYPE_NUMBER_NAN);
-        case 'op.and':
-            return new TypedInput(`(${this.descendInput(node.left).asBoolean()} && ${this.descendInput(node.right).asBoolean()})`, TYPE_BOOLEAN);
-        case 'op.asin':
+            return new TypedInput(`(${this.descendInput(node.left).asNumber()} + ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_AND:
+            return new TypedInput(`(${this.descendInput(node.left).asBoolean()} && ${this.descendInput(node.right).asBoolean()})`, ValueType.BOOLEAN);
+        case ReporterOpcode.OP_ASIN:
             // Needs to be marked as NaN because Math.asin(1.0001) === NaN
-            return new TypedInput(`((Math.asin(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, TYPE_NUMBER_NAN);
-        case 'op.atan':
-            return new TypedInput(`((Math.atan(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, TYPE_NUMBER);
-        case 'op.ceiling':
-            return new TypedInput(`Math.ceil(${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER);
-        case 'op.contains':
-            return new TypedInput(`(${this.descendInput(node.string).asString()}.toLowerCase().indexOf(${this.descendInput(node.contains).asString()}.toLowerCase()) !== -1)`, TYPE_BOOLEAN);
-        case 'op.cos':
-            return new TypedInput(`(Math.round(Math.cos((Math.PI * ${this.descendInput(node.value).asNumber()}) / 180) * 1e10) / 1e10)`, TYPE_NUMBER_NAN);
-        case 'op.divide':
+            return new TypedInput(`((Math.asin(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_ATAN:
+            return new TypedInput(`((Math.atan(${this.descendInput(node.value).asNumber()}) * 180) / Math.PI)`, ValueType.NUMBER);
+        case ReporterOpcode.OP_CEILING:
+            return new TypedInput(`Math.ceil(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
+        case ReporterOpcode.OP_CONTAINS:
+            return new TypedInput(`(${this.descendInput(node.string).asString()}.toLowerCase().indexOf(${this.descendInput(node.contains).asString()}.toLowerCase()) !== -1)`, ValueType.BOOLEAN);
+        case ReporterOpcode.OP_COS:
+            return new TypedInput(`(Math.round(Math.cos((Math.PI * ${this.descendInput(node.value).asNumber()}) / 180) * 1e10) / 1e10)`, ValueType.NUMBER);
+        case ReporterOpcode.OP_DIVIDE:
             // Needs to be marked as NaN because 0 / 0 === NaN
-            return new TypedInput(`(${this.descendInput(node.left).asNumber()} / ${this.descendInput(node.right).asNumber()})`, TYPE_NUMBER_NAN);
-        case 'op.equals': {
+            return new TypedInput(`(${this.descendInput(node.left).asNumber()} / ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_EQUALS: {
             const left = this.descendInput(node.left);
             const right = this.descendInput(node.right);
             // When both operands are known to never be numbers, only use string comparison to avoid all number parsing.
             if (left.isNeverNumber() || right.isNeverNumber()) {
-                return new TypedInput(`(${left.asString()}.toLowerCase() === ${right.asString()}.toLowerCase())`, TYPE_BOOLEAN);
+                return new TypedInput(`(${left.asString()}.toLowerCase() === ${right.asString()}.toLowerCase())`, ValueType.BOOLEAN);
             }
             const leftAlwaysNumber = left.isAlwaysNumber();
             const rightAlwaysNumber = right.isAlwaysNumber();
             // When both operands are known to be numbers, we can use ===
             if (leftAlwaysNumber && rightAlwaysNumber) {
-                return new TypedInput(`(${left.asNumber()} === ${right.asNumber()})`, TYPE_BOOLEAN);
+                return new TypedInput(`(${left.asNumber()} === ${right.asNumber()})`, ValueType.BOOLEAN);
             }
             // In certain conditions, we can use === when one of the operands is known to be a safe number.
             if (leftAlwaysNumber && left instanceof ConstantInput && isSafeConstantForEqualsOptimization(left)) {
-                return new TypedInput(`(${left.asNumber()} === ${right.asNumber()})`, TYPE_BOOLEAN);
+                return new TypedInput(`(${left.asNumber()} === ${right.asNumber()})`, ValueType.BOOLEAN);
             }
             if (rightAlwaysNumber && right instanceof ConstantInput && isSafeConstantForEqualsOptimization(right)) {
-                return new TypedInput(`(${left.asNumber()} === ${right.asNumber()})`, TYPE_BOOLEAN);
+                return new TypedInput(`(${left.asNumber()} === ${right.asNumber()})`, ValueType.BOOLEAN);
             }
             // No compile-time optimizations possible - use fallback method.
-            return new TypedInput(`compareEqual(${left.asUnknown()}, ${right.asUnknown()})`, TYPE_BOOLEAN);
+            return new TypedInput(`compareEqual(${left.asUnknown()}, ${right.asUnknown()})`, ValueType.BOOLEAN);
         }
-        case 'op.e^':
-            return new TypedInput(`Math.exp(${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER);
-        case 'op.floor':
-            return new TypedInput(`Math.floor(${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER);
-        case 'op.greater': {
+        case ReporterOpcode.OP_POW_E:
+            return new TypedInput(`Math.exp(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
+        case ReporterOpcode.OP_FLOOR:
+            return new TypedInput(`Math.floor(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
+        case ReporterOpcode.OP_GREATER: {
             const left = this.descendInput(node.left);
             const right = this.descendInput(node.right);
             // When the left operand is a number and the right operand is a number or NaN, we can use >
             if (left.isAlwaysNumber() && right.isAlwaysNumberOrNaN()) {
-                return new TypedInput(`(${left.asNumber()} > ${right.asNumberOrNaN()})`, TYPE_BOOLEAN);
+                return new TypedInput(`(${left.asNumber()} > ${right.asNumberOrNaN()})`, ValueType.BOOLEAN);
             }
             // When the left operand is a number or NaN and the right operand is a number, we can negate <=
             if (left.isAlwaysNumberOrNaN() && right.isAlwaysNumber()) {
-                return new TypedInput(`!(${left.asNumberOrNaN()} <= ${right.asNumber()})`, TYPE_BOOLEAN);
+                return new TypedInput(`!(${left.asNumberOrNaN()} <= ${right.asNumber()})`, ValueType.BOOLEAN);
             }
             // When either operand is known to never be a number, avoid all number parsing.
             if (left.isNeverNumber() || right.isNeverNumber()) {
-                return new TypedInput(`(${left.asString()}.toLowerCase() > ${right.asString()}.toLowerCase())`, TYPE_BOOLEAN);
+                return new TypedInput(`(${left.asString()}.toLowerCase() > ${right.asString()}.toLowerCase())`, ValueType.BOOLEAN);
             }
             // No compile-time optimizations possible - use fallback method.
-            return new TypedInput(`compareGreaterThan(${left.asUnknown()}, ${right.asUnknown()})`, TYPE_BOOLEAN);
+            return new TypedInput(`compareGreaterThan(${left.asUnknown()}, ${right.asUnknown()})`, ValueType.BOOLEAN);
         }
-        case 'op.join':
-            return new TypedInput(`(${this.descendInput(node.left).asString()} + ${this.descendInput(node.right).asString()})`, TYPE_STRING);
-        case 'op.length':
-            return new TypedInput(`${this.descendInput(node.string).asString()}.length`, TYPE_NUMBER);
-        case 'op.less': {
+        case ReporterOpcode.OP_JOIN:
+            return new TypedInput(`(${this.descendInput(node.left).asString()} + ${this.descendInput(node.right).asString()})`, ValueType.STRING);
+        case ReporterOpcode.OP_LENGTH:
+            return new TypedInput(`${this.descendInput(node.string).asString()}.length`, ValueType.NUMBER);
+        case ReporterOpcode.OP_LESS: {
             const left = this.descendInput(node.left);
             const right = this.descendInput(node.right);
             // When the left operand is a number or NaN and the right operand is a number, we can use <
             if (left.isAlwaysNumberOrNaN() && right.isAlwaysNumber()) {
-                return new TypedInput(`(${left.asNumberOrNaN()} < ${right.asNumber()})`, TYPE_BOOLEAN);
+                return new TypedInput(`(${left.asNumberOrNaN()} < ${right.asNumber()})`, ValueType.BOOLEAN);
             }
             // When the left operand is a number and the right operand is a number or NaN, we can negate >=
             if (left.isAlwaysNumber() && right.isAlwaysNumberOrNaN()) {
-                return new TypedInput(`!(${left.asNumber()} >= ${right.asNumberOrNaN()})`, TYPE_BOOLEAN);
+                return new TypedInput(`!(${left.asNumber()} >= ${right.asNumberOrNaN()})`, ValueType.BOOLEAN);
             }
             // When either operand is known to never be a number, avoid all number parsing.
             if (left.isNeverNumber() || right.isNeverNumber()) {
-                return new TypedInput(`(${left.asString()}.toLowerCase() < ${right.asString()}.toLowerCase())`, TYPE_BOOLEAN);
+                return new TypedInput(`(${left.asString()}.toLowerCase() < ${right.asString()}.toLowerCase())`, ValueType.BOOLEAN);
             }
             // No compile-time optimizations possible - use fallback method.
-            return new TypedInput(`compareLessThan(${left.asUnknown()}, ${right.asUnknown()})`, TYPE_BOOLEAN);
+            return new TypedInput(`compareLessThan(${left.asUnknown()}, ${right.asUnknown()})`, ValueType.BOOLEAN);
         }
-        case 'op.letterOf':
-            return new TypedInput(`((${this.descendInput(node.string).asString()})[(${this.descendInput(node.letter).asNumber()} | 0) - 1] || "")`, TYPE_STRING);
-        case 'op.ln':
+        case ReporterOpcode.OP_LETTER_OF:
+            return new TypedInput(`((${this.descendInput(node.string).asString()})[(${this.descendInput(node.letter).asNumber()} | 0) - 1] || "")`, ValueType.STRING);
+        case ReporterOpcode.OP_LOG_E:
             // Needs to be marked as NaN because Math.log(-1) == NaN
-            return new TypedInput(`Math.log(${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER_NAN);
-        case 'op.log':
+            return new TypedInput(`Math.log(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_LOG_10:
             // Needs to be marked as NaN because Math.log(-1) == NaN
-            return new TypedInput(`(Math.log(${this.descendInput(node.value).asNumber()}) / Math.LN10)`, TYPE_NUMBER_NAN);
-        case 'op.mod':
+            return new TypedInput(`(Math.log(${this.descendInput(node.value).asNumber()}) / Math.LN10)`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_MOD:
             this.descendedIntoModulo = true;
             // Needs to be marked as NaN because mod(0, 0) (and others) == NaN
-            return new TypedInput(`mod(${this.descendInput(node.left).asNumber()}, ${this.descendInput(node.right).asNumber()})`, TYPE_NUMBER_NAN);
-        case 'op.multiply':
+            return new TypedInput(`mod(${this.descendInput(node.left).asNumber()}, ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_MULTIPLY:
             // Needs to be marked as NaN because Infinity * 0 === NaN
-            return new TypedInput(`(${this.descendInput(node.left).asNumber()} * ${this.descendInput(node.right).asNumber()})`, TYPE_NUMBER_NAN);
-        case 'op.not':
-            return new TypedInput(`!${this.descendInput(node.operand).asBoolean()}`, TYPE_BOOLEAN);
-        case 'op.or':
-            return new TypedInput(`(${this.descendInput(node.left).asBoolean()} || ${this.descendInput(node.right).asBoolean()})`, TYPE_BOOLEAN);
-        case 'op.random':
+            return new TypedInput(`(${this.descendInput(node.left).asNumber()} * ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_NOT:
+            return new TypedInput(`!${this.descendInput(node.operand).asBoolean()}`, ValueType.BOOLEAN);
+        case ReporterOpcode.OP_OR:
+            return new TypedInput(`(${this.descendInput(node.left).asBoolean()} || ${this.descendInput(node.right).asBoolean()})`, ValueType.BOOLEAN);
+        case ReporterOpcode.OP_RANDOM:
             if (node.useInts) {
-                // Both inputs are ints, so we know neither are NaN
-                return new TypedInput(`randomInt(${this.descendInput(node.low).asNumber()}, ${this.descendInput(node.high).asNumber()})`, TYPE_NUMBER);
+                return new TypedInput(`randomInt(${this.descendInput(node.low).asNumber()}, ${this.descendInput(node.high).asNumber()})`, ValueType.NUMBER);
             }
             if (node.useFloats) {
-                return new TypedInput(`randomFloat(${this.descendInput(node.low).asNumber()}, ${this.descendInput(node.high).asNumber()})`, TYPE_NUMBER_NAN);
+                return new TypedInput(`randomFloat(${this.descendInput(node.low).asNumber()}, ${this.descendInput(node.high).asNumber()})`, ValueType.NUMBER);
             }
-            return new TypedInput(`runtime.ext_scratch3_operators._random(${this.descendInput(node.low).asUnknown()}, ${this.descendInput(node.high).asUnknown()})`, TYPE_NUMBER_NAN);
-        case 'op.round':
-            return new TypedInput(`Math.round(${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER);
-        case 'op.sin':
-            return new TypedInput(`(Math.round(Math.sin((Math.PI * ${this.descendInput(node.value).asNumber()}) / 180) * 1e10) / 1e10)`, TYPE_NUMBER_NAN);
-        case 'op.sqrt':
+            return new TypedInput(`runtime.ext_scratch3_operators._random(${this.descendInput(node.low).asUnknown()}, ${this.descendInput(node.high).asUnknown()})`, ValueType.NUMBER);
+        case ReporterOpcode.OP_ROUND:
+            return new TypedInput(`Math.round(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
+        case ReporterOpcode.OP_SIN:
+            return new TypedInput(`(Math.round(Math.sin((Math.PI * ${this.descendInput(node.value).asNumber()}) / 180) * 1e10) / 1e10)`, ValueType.NUMBER);
+        case ReporterOpcode.OP_SQRT:
             // Needs to be marked as NaN because Math.sqrt(-1) === NaN
-            return new TypedInput(`Math.sqrt(${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER_NAN);
-        case 'op.subtract':
+            return new TypedInput(`Math.sqrt(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_SUBTRACT:
             // Needs to be marked as NaN because Infinity - Infinity === NaN
-            return new TypedInput(`(${this.descendInput(node.left).asNumber()} - ${this.descendInput(node.right).asNumber()})`, TYPE_NUMBER_NAN);
-        case 'op.tan':
-            return new TypedInput(`tan(${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER_NAN);
-        case 'op.10^':
-            return new TypedInput(`(10 ** ${this.descendInput(node.value).asNumber()})`, TYPE_NUMBER);
+            return new TypedInput(`(${this.descendInput(node.left).asNumber()} - ${this.descendInput(node.right).asNumber()})`, ValueType.NUMBER_OR_NAN);
+        case ReporterOpcode.OP_TAN:
+            return new TypedInput(`tan(${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
+        case ReporterOpcode.OP_POW_10:
+            return new TypedInput(`(10 ** ${this.descendInput(node.value).asNumber()})`, ValueType.NUMBER);
 
-        case 'procedures.call': {
-            const procedureCode = node.code;
-            const procedureVariant = node.variant;
-            const procedureData = this.ir.procedures[procedureVariant];
-            if (procedureData.stack === null) {
-                // TODO still need to evaluate arguments for side effects
-                return new TypedInput('""', TYPE_STRING);
-            }
-
-            // Recursion makes this complicated because:
-            //  - We need to yield *between* each call in the same command block
-            //  - We need to evaluate arguments *before* that yield happens
-
-            const procedureReference = `thread.procedures["${sanitize(procedureVariant)}"]`;
-            const args = [];
-            for (const input of node.arguments) {
-                args.push(this.descendInput(input).asSafe());
-            }
-            const joinedArgs = args.join(',');
-
-            const yieldForRecursion = !this.isWarp && procedureCode === this.script.procedureCode;
-            const yieldForHat = this.isInHat;
-            if (yieldForRecursion || yieldForHat) {
-                const runtimeFunction = procedureData.yields ? 'yieldThenCallGenerator' : 'yieldThenCall';
-                return new TypedInput(`(yield* ${runtimeFunction}(${procedureReference}, ${joinedArgs}))`, TYPE_UNKNOWN);
-            }
-            if (procedureData.yields) {
-                return new TypedInput(`(yield* ${procedureReference}(${joinedArgs}))`, TYPE_UNKNOWN);
-            }
-            return new TypedInput(`${procedureReference}(${joinedArgs})`, TYPE_UNKNOWN);
-        }
-
-        case 'sensing.answer':
-            return new TypedInput(`runtime.ext_scratch3_sensing._answer`, TYPE_STRING);
-        case 'sensing.colorTouchingColor':
-            return new TypedInput(`target.colorIsTouchingColor(colorToList(${this.descendInput(node.target).asColor()}), colorToList(${this.descendInput(node.mask).asColor()}))`, TYPE_BOOLEAN);
-        case 'sensing.date':
-            return new TypedInput(`(new Date().getDate())`, TYPE_NUMBER);
-        case 'sensing.dayofweek':
-            return new TypedInput(`(new Date().getDay() + 1)`, TYPE_NUMBER);
-        case 'sensing.daysSince2000':
-            return new TypedInput('daysSince2000()', TYPE_NUMBER);
-        case 'sensing.distance':
+        case ReporterOpcode.SENSING_ANSWER:
+            return new TypedInput(`runtime.ext_scratch3_sensing._answer`, ValueType.STRING);
+        case ReporterOpcode.SENSING_COLOR_TOUCHING_COLOR:
+            return new TypedInput(`target.colorIsTouchingColor(colorToList(${this.descendInput(node.target).asColor()}), colorToList(${this.descendInput(node.mask).asColor()}))`, ValueType.BOOLEAN);
+        case ReporterOpcode.SENSING_TIME_DATE:
+            return new TypedInput(`(new Date().getDate())`, ValueType.NUMBER);
+        case ReporterOpcode.SENSING_TIME_WEEKDAY:
+            return new TypedInput(`(new Date().getDay() + 1)`, ValueType.NUMBER);
+        case ReporterOpcode.SENSING_TIME_DAYS_SINCE_2000:
+            return new TypedInput('daysSince2000()', ValueType.NUMBER);
+        case ReporterOpcode.SENSING_DISTANCE:
             // TODO: on stages, this can be computed at compile time
-            return new TypedInput(`distance(${this.descendInput(node.target).asString()})`, TYPE_NUMBER);
-        case 'sensing.hour':
-            return new TypedInput(`(new Date().getHours())`, TYPE_NUMBER);
-        case 'sensing.minute':
-            return new TypedInput(`(new Date().getMinutes())`, TYPE_NUMBER);
-        case 'sensing.month':
-            return new TypedInput(`(new Date().getMonth() + 1)`, TYPE_NUMBER);
-        case 'sensing.of': {
+            return new TypedInput(`distance(${this.descendInput(node.target).asString()})`, ValueType.NUMBER);
+        case ReporterOpcode.SENSING_TIME_HOUR:
+            return new TypedInput(`(new Date().getHours())`, ValueType.NUMBER);
+        case ReporterOpcode.SENSING_TIME_MINUTE:
+            return new TypedInput(`(new Date().getMinutes())`, ValueType.NUMBER);
+        case ReporterOpcode.SENSING_TIME_MONTH:
+            return new TypedInput(`(new Date().getMonth() + 1)`, ValueType.NUMBER);
+        case ReporterOpcode.SENSING_OF: {
             const object = this.descendInput(node.object).asString();
             const property = node.property;
-            if (node.object.kind === 'constant') {
+            if (node.object.kind === ReporterOpcode.CONSTANT) {
                 const isStage = node.object.value === '_stage_';
                 // Note that if target isn't a stage, we can't assume it exists
                 const objectReference = isStage ? 'stage' : this.evaluateOnce(`runtime.getSpriteTargetByName(${object})`);
                 if (property === 'volume') {
-                    return new TypedInput(`(${objectReference} ? ${objectReference}.volume : 0)`, TYPE_NUMBER);
+                    return new TypedInput(`(${objectReference} ? ${objectReference}.volume : 0)`, ValueType.NUMBER);
                 }
                 if (isStage) {
                     switch (property) {
                     case 'background #':
                         // fallthrough for scratch 1.0 compatibility
                     case 'backdrop #':
-                        return new TypedInput(`(${objectReference}.currentCostume + 1)`, TYPE_NUMBER);
+                        return new TypedInput(`(${objectReference}.currentCostume + 1)`, ValueType.NUMBER);
                     case 'backdrop name':
-                        return new TypedInput(`${objectReference}.getCostumes()[${objectReference}.currentCostume].name`, TYPE_STRING);
+                        return new TypedInput(`${objectReference}.getCostumes()[${objectReference}.currentCostume].name`, ValueType.STRING);
                     }
                 } else {
                     switch (property) {
                     case 'x position':
-                        return new TypedInput(`(${objectReference} ? ${objectReference}.x : 0)`, TYPE_NUMBER);
+                        return new TypedInput(`(${objectReference} ? ${objectReference}.x : 0)`, ValueType.NUMBER);
                     case 'y position':
-                        return new TypedInput(`(${objectReference} ? ${objectReference}.y : 0)`, TYPE_NUMBER);
+                        return new TypedInput(`(${objectReference} ? ${objectReference}.y : 0)`, ValueType.NUMBER);
                     case 'direction':
-                        return new TypedInput(`(${objectReference} ? ${objectReference}.direction : 0)`, TYPE_NUMBER);
+                        return new TypedInput(`(${objectReference} ? ${objectReference}.direction : 0)`, ValueType.NUMBER);
                     case 'costume #':
-                        return new TypedInput(`(${objectReference} ? ${objectReference}.currentCostume + 1 : 0)`, TYPE_NUMBER);
+                        return new TypedInput(`(${objectReference} ? ${objectReference}.currentCostume + 1 : 0)`, ValueType.NUMBER);
                     case 'costume name':
-                        return new TypedInput(`(${objectReference} ? ${objectReference}.getCostumes()[${objectReference}.currentCostume].name : 0)`, TYPE_UNKNOWN);
+                        return new TypedInput(`(${objectReference} ? ${objectReference}.getCostumes()[${objectReference}.currentCostume].name : 0)`, ValueType.UNKNOWN);
                     case 'size':
-                        return new TypedInput(`(${objectReference} ? ${objectReference}.size : 0)`, TYPE_NUMBER);
+                        return new TypedInput(`(${objectReference} ? ${objectReference}.size : 0)`, ValueType.NUMBER);
                     }
                 }
                 const variableReference = this.evaluateOnce(`${objectReference} && ${objectReference}.lookupVariableByNameAndType("${sanitize(property)}", "", true)`);
-                return new TypedInput(`(${variableReference} ? ${variableReference}.value : 0)`, TYPE_UNKNOWN);
+                return new TypedInput(`(${variableReference} ? ${variableReference}.value : 0)`, ValueType.UNKNOWN);
             }
-            return new TypedInput(`runtime.ext_scratch3_sensing.getAttributeOf({OBJECT: ${object}, PROPERTY: "${sanitize(property)}" })`, TYPE_UNKNOWN);
+            return new TypedInput(`runtime.ext_scratch3_sensing.getAttributeOf({OBJECT: ${object}, PROPERTY: "${sanitize(property)}" })`, ValueType.UNKNOWN);
         }
-        case 'sensing.second':
-            return new TypedInput(`(new Date().getSeconds())`, TYPE_NUMBER);
-        case 'sensing.touching':
-            return new TypedInput(`target.isTouchingObject(${this.descendInput(node.object).asUnknown()})`, TYPE_BOOLEAN);
-        case 'sensing.touchingColor':
-            return new TypedInput(`target.isTouchingColor(colorToList(${this.descendInput(node.color).asColor()}))`, TYPE_BOOLEAN);
-        case 'sensing.username':
-            return new TypedInput('runtime.ioDevices.userData.getUsername()', TYPE_STRING);
-        case 'sensing.year':
-            return new TypedInput(`(new Date().getFullYear())`, TYPE_NUMBER);
+        case ReporterOpcode.SENSING_TIME_SECOND:
+            return new TypedInput(`(new Date().getSeconds())`, ValueType.NUMBER);
+        case ReporterOpcode.SENSING_TOUCHING_OBJECT:
+            return new TypedInput(`target.isTouchingObject(${this.descendInput(node.object).asUnknown()})`, ValueType.BOOLEAN);
+        case ReporterOpcode.SENSING_TOUCHING_COLOR:
+            return new TypedInput(`target.isTouchingColor(colorToList(${this.descendInput(node.color).asColor()}))`, ValueType.BOOLEAN);
+        case ReporterOpcode.SENSING_USERNAME:
+            return new TypedInput('runtime.ioDevices.userData.getUsername()', ValueType.STRING);
+        case ReporterOpcode.SENSING_TIME_YEAR:
+            return new TypedInput(`(new Date().getFullYear())`, ValueType.NUMBER);
 
-        case 'timer.get':
-            return new TypedInput('runtime.ioDevices.clock.projectTimer()', TYPE_NUMBER);
+        case ReporterOpcode.SENSING_TIMER_GET:
+            return new TypedInput('runtime.ioDevices.clock.projectTimer()', ValueType.NUMBER);
 
-        case 'tw.lastKeyPressed':
-            return new TypedInput('runtime.ioDevices.keyboard.getLastKeyPressed()', TYPE_STRING);
+        case ReporterOpcode.TW_KEY_LAST_PRESSED:
+            return new TypedInput('runtime.ioDevices.keyboard.getLastKeyPressed()', ValueType.STRING);
 
-        case 'var.get':
+        case ReporterOpcode.VAR_GET:
             return this.descendVariable(node.variable);
 
         default:
@@ -756,11 +709,14 @@ class JSGenerator {
      */
     descendStackedBlock (node) {
         switch (node.kind) {
-        case 'addons.call':
-            this.source += `${this.descendAddonCall(node)};\n`;
+        case BlockOpcode.TW_ADDON_CALL: {
+            const inputs = this.descendInputRecord(node.arguments);
+            const blockFunction = `runtime.getAddonBlock("${sanitize(node.code)}").callback`;
+            const blockId = `"${sanitize(node.blockId)}"`;
+            this.source += `yield* executeInCompatibilityLayer(${inputs}, ${blockFunction}, ${this.isWarp}, false, ${blockId});\n`;
             break;
-
-        case 'compat': {
+        }
+        case BlockOpcode.TW_COMPATIBILITY_LAYER: {
             // If the last command in a loop returns a promise, immediately continue to the next iteration.
             // If you don't do this, the loop effectively yields twice per iteration and will run at half-speed.
             const isLastInLoop = this.isLastBlockInLoop();
@@ -793,17 +749,17 @@ class JSGenerator {
             break;
         }
 
-        case 'control.createClone':
+        case BlockOpcode.CONTROL_CLONE_CREATE:
             this.source += `runtime.ext_scratch3_control._createClone(${this.descendInput(node.target).asString()}, target);\n`;
             break;
-        case 'control.deleteClone':
+        case BlockOpcode.CONTROL_CLONE_DELETE:
             this.source += 'if (!target.isOriginal) {\n';
             this.source += '  runtime.disposeTarget(target);\n';
             this.source += '  runtime.stopForTarget(target);\n';
             this.retire();
             this.source += '}\n';
             break;
-        case 'control.for': {
+        case BlockOpcode.CONTROL_FOR: {
             this.resetVariableInputs();
             const index = this.localVariables.next();
             this.source += `var ${index} = 0; `;
@@ -815,7 +771,7 @@ class JSGenerator {
             this.source += '}\n';
             break;
         }
-        case 'control.if':
+        case BlockOpcode.CONTROL_IF_ELSE:
             this.source += `if (${this.descendInput(node.condition).asBoolean()}) {\n`;
             this.descendStack(node.whenTrue, new Frame(false));
             // only add the else branch if it won't be empty
@@ -826,7 +782,7 @@ class JSGenerator {
             }
             this.source += `}\n`;
             break;
-        case 'control.repeat': {
+        case BlockOpcode.CONTROL_REPEAT: {
             const i = this.localVariables.next();
             this.source += `for (var ${i} = ${this.descendInput(node.times).asNumber()}; ${i} >= 0.5; ${i}--) {\n`;
             this.descendStack(node.do, new Frame(true));
@@ -834,17 +790,21 @@ class JSGenerator {
             this.source += `}\n`;
             break;
         }
-        case 'control.stopAll':
+        case BlockOpcode.CONTROL_STOP_ALL:
             this.source += 'runtime.stopAll();\n';
             this.retire();
             break;
-        case 'control.stopOthers':
+        case BlockOpcode.CONTROL_STOP_OTHERS:
             this.source += 'runtime.stopForTarget(target, thread);\n';
             break;
-        case 'control.stopScript':
-            this.stopScript();
+        case BlockOpcode.CONTROL_STOP_SCRIPT:
+            if (this.isProcedure) {
+                this.source += 'return;\n';
+            } else {
+                this.retire();
+            }
             break;
-        case 'control.wait': {
+        case BlockOpcode.CONTROL_WAIT: {
             const duration = this.localVariables.next();
             this.source += `thread.timer = timer();\n`;
             this.source += `var ${duration} = Math.max(0, 1000 * ${this.descendInput(node.seconds).asNumber()});\n`;
@@ -857,14 +817,14 @@ class JSGenerator {
             this.source += 'thread.timer = null;\n';
             break;
         }
-        case 'control.waitUntil': {
+        case BlockOpcode.CONTROL_WAIT_UNTIL: {
             this.resetVariableInputs();
             this.source += `while (!${this.descendInput(node.condition).asBoolean()}) {\n`;
             this.yieldStuckOrNotWarp();
             this.source += `}\n`;
             break;
         }
-        case 'control.while':
+        case BlockOpcode.CONTROL_WHILE:
             this.resetVariableInputs();
             this.source += `while (${this.descendInput(node.condition).asBoolean()}) {\n`;
             this.descendStack(node.do, new Frame(true));
@@ -876,55 +836,22 @@ class JSGenerator {
             this.source += `}\n`;
             break;
 
-        case 'counter.clear':
-            this.source += 'runtime.ext_scratch3_control._counter = 0;\n';
-            break;
-        case 'counter.increment':
-            this.source += 'runtime.ext_scratch3_control._counter++;\n';
-            break;
-
-        case 'hat.edge':
-            this.isInHat = true;
-            this.source += '{\n';
-            // For exact Scratch parity, evaluate the input before checking old edge state.
-            // Can matter if the input is not instantly evaluated.
-            this.source += `const resolvedValue = ${this.descendInput(node.condition).asBoolean()};\n`;
-            this.source += `const id = "${sanitize(node.id)}";\n`;
-            this.source += 'const hasOldEdgeValue = target.hasEdgeActivatedValue(id);\n';
-            this.source += `const oldEdgeValue = target.updateEdgeActivatedValue(id, resolvedValue);\n`;
-            this.source += `const edgeWasActivated = hasOldEdgeValue ? (!oldEdgeValue && resolvedValue) : resolvedValue;\n`;
-            this.source += `if (!edgeWasActivated) {\n`;
-            this.retire();
-            this.source += '}\n';
-            this.source += 'yield;\n';
-            this.source += '}\n';
-            this.isInHat = false;
-            break;
-        case 'hat.predicate':
-            this.isInHat = true;
-            this.source += `if (!${this.descendInput(node.condition).asBoolean()}) {\n`;
-            this.retire();
-            this.source += '}\n';
-            this.source += 'yield;\n';
-            this.isInHat = false;
-            break;
-
-        case 'event.broadcast':
+        case BlockOpcode.EVENT_BROADCAST:
             this.source += `startHats("event_whenbroadcastreceived", { BROADCAST_OPTION: ${this.descendInput(node.broadcast).asString()} });\n`;
             this.resetVariableInputs();
             break;
-        case 'event.broadcastAndWait':
+        case BlockOpcode.EVENT_BROADCAST_AND_WAIT:
             this.source += `yield* waitThreads(startHats("event_whenbroadcastreceived", { BROADCAST_OPTION: ${this.descendInput(node.broadcast).asString()} }));\n`;
             this.yielded();
             break;
 
-        case 'list.add': {
+        case BlockOpcode.LIST_ADD: {
             const list = this.referenceVariable(node.list);
             this.source += `${list}.value.push(${this.descendInput(node.item).asSafe()});\n`;
             this.source += `${list}._monitorUpToDate = false;\n`;
             break;
         }
-        case 'list.delete': {
+        case BlockOpcode.LIST_DELETE: {
             const list = this.referenceVariable(node.list);
             const index = this.descendInput(node.index);
             if (index instanceof ConstantInput) {
@@ -943,13 +870,13 @@ class JSGenerator {
             this.source += `listDelete(${list}, ${index.asUnknown()});\n`;
             break;
         }
-        case 'list.deleteAll':
+        case BlockOpcode.LIST_DELETE_ALL:
             this.source += `${this.referenceVariable(node.list)}.value = [];\n`;
             break;
-        case 'list.hide':
+        case BlockOpcode.LIST_HIDE:
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.list.id)}", element: "checkbox", value: false }, runtime);\n`;
             break;
-        case 'list.insert': {
+        case BlockOpcode.LIST_INSERT: {
             const list = this.referenceVariable(node.list);
             const index = this.descendInput(node.index);
             const item = this.descendInput(node.item);
@@ -961,91 +888,91 @@ class JSGenerator {
             this.source += `listInsert(${list}, ${index.asUnknown()}, ${item.asSafe()});\n`;
             break;
         }
-        case 'list.replace':
+        case BlockOpcode.LIST_REPLACE:
             this.source += `listReplace(${this.referenceVariable(node.list)}, ${this.descendInput(node.index).asUnknown()}, ${this.descendInput(node.item).asSafe()});\n`;
             break;
-        case 'list.show':
+        case BlockOpcode.LIST_SHOW:
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.list.id)}", element: "checkbox", value: true }, runtime);\n`;
             break;
 
-        case 'looks.backwardLayers':
+        case BlockOpcode.LOOKS_LAYER_BACKWARD:
             if (!this.target.isStage) {
                 this.source += `target.goBackwardLayers(${this.descendInput(node.layers).asNumber()});\n`;
             }
             break;
-        case 'looks.clearEffects':
+        case BlockOpcode.LOOKS_EFFECT_CLEAR:
             this.source += 'target.clearEffects();\n';
             break;
-        case 'looks.changeEffect':
-            if (Object.prototype.hasOwnProperty.call(this.target.effects, node.effect)) {
+        case BlockOpcode.LOOKS_EFFECT_CHANGE:
+            if (this.target.effects.hasOwnProperty(node.effect)) {
                 this.source += `target.setEffect("${sanitize(node.effect)}", runtime.ext_scratch3_looks.clampEffect("${sanitize(node.effect)}", ${this.descendInput(node.value).asNumber()} + target.effects["${sanitize(node.effect)}"]));\n`;
             }
             break;
-        case 'looks.changeSize':
+        case BlockOpcode.LOOKS_SIZE_CHANGE:
             this.source += `target.setSize(target.size + ${this.descendInput(node.size).asNumber()});\n`;
             break;
-        case 'looks.forwardLayers':
+        case BlockOpcode.LOOKS_LAYER_FORWARD:
             if (!this.target.isStage) {
                 this.source += `target.goForwardLayers(${this.descendInput(node.layers).asNumber()});\n`;
             }
             break;
-        case 'looks.goToBack':
+        case BlockOpcode.LOOKS_LAYER_BACK:
             if (!this.target.isStage) {
                 this.source += 'target.goToBack();\n';
             }
             break;
-        case 'looks.goToFront':
+        case BlockOpcode.LOOKS_LAYER_FRONT:
             if (!this.target.isStage) {
                 this.source += 'target.goToFront();\n';
             }
             break;
-        case 'looks.hide':
+        case BlockOpcode.LOOKS_HIDE:
             this.source += 'target.setVisible(false);\n';
             this.source += 'runtime.ext_scratch3_looks._renderBubble(target);\n';
             break;
-        case 'looks.nextBackdrop':
+        case BlockOpcode.LOOKS_BACKDROP_NEXT:
             this.source += 'runtime.ext_scratch3_looks._setBackdrop(stage, stage.currentCostume + 1, true);\n';
             break;
-        case 'looks.nextCostume':
+        case BlockOpcode.LOOKS_COSTUME_NEXT:
             this.source += 'target.setCostume(target.currentCostume + 1);\n';
             break;
-        case 'looks.setEffect':
-            if (Object.prototype.hasOwnProperty.call(this.target.effects, node.effect)) {
+        case BlockOpcode.LOOKS_EFFECT_SET:
+            if (this.target.effects.hasOwnProperty(node.effect)) {
                 this.source += `target.setEffect("${sanitize(node.effect)}", runtime.ext_scratch3_looks.clampEffect("${sanitize(node.effect)}", ${this.descendInput(node.value).asNumber()}));\n`;
             }
             break;
-        case 'looks.setSize':
+        case BlockOpcode.LOOKS_SIZE_SET:
             this.source += `target.setSize(${this.descendInput(node.size).asNumber()});\n`;
             break;
-        case 'looks.show':
+        case BlockOpcode.LOOKS_SHOW:
             this.source += 'target.setVisible(true);\n';
             this.source += 'runtime.ext_scratch3_looks._renderBubble(target);\n';
             break;
-        case 'looks.switchBackdrop':
+        case BlockOpcode.LOOKS_BACKDROP_SET:
             this.source += `runtime.ext_scratch3_looks._setBackdrop(stage, ${this.descendInput(node.backdrop).asSafe()});\n`;
             break;
-        case 'looks.switchCostume':
+        case BlockOpcode.LOOKS_COSTUME_SET:
             this.source += `runtime.ext_scratch3_looks._setCostume(target, ${this.descendInput(node.costume).asSafe()});\n`;
             break;
 
-        case 'motion.changeX':
+        case BlockOpcode.MOTION_X_CHANGE:
             this.source += `target.setXY(target.x + ${this.descendInput(node.dx).asNumber()}, target.y);\n`;
             break;
-        case 'motion.changeY':
+        case BlockOpcode.MOTION_Y_CHANGE:
             this.source += `target.setXY(target.x, target.y + ${this.descendInput(node.dy).asNumber()});\n`;
             break;
-        case 'motion.ifOnEdgeBounce':
+        case BlockOpcode.MOTION_IF_ON_EDGE_BOUNCE:
             this.source += `runtime.ext_scratch3_motion._ifOnEdgeBounce(target);\n`;
             break;
-        case 'motion.setDirection':
+        case BlockOpcode.MOTION_DIRECTION_SET:
             this.source += `target.setDirection(${this.descendInput(node.direction).asNumber()});\n`;
             break;
-        case 'motion.setRotationStyle':
+        case BlockOpcode.MOTION_ROTATION_STYLE_SET:
             this.source += `target.setRotationStyle("${sanitize(node.style)}");\n`;
             break;
-        case 'motion.setX': // fallthrough
-        case 'motion.setY': // fallthrough
-        case 'motion.setXY': {
+        case BlockOpcode.MOTION_X_SET: // fallthrough
+        case BlockOpcode.MOTION_Y_SET: // fallthrough
+        case BlockOpcode.MOTION_XY_SET: {
             this.descendedIntoModulo = false;
             const x = 'x' in node ? this.descendInput(node.x).asNumber() : 'target.x';
             const y = 'y' in node ? this.descendInput(node.y).asNumber() : 'target.y';
@@ -1055,54 +982,55 @@ class JSGenerator {
             }
             break;
         }
-        case 'motion.step':
+        case BlockOpcode.MOTION_STEP:
             this.source += `runtime.ext_scratch3_motion._moveSteps(${this.descendInput(node.steps).asNumber()}, target);\n`;
             break;
 
-        case 'noop':
+        case BlockOpcode.NOP:
+            // todo: remove noop entirely
             break;
 
-        case 'pen.clear':
+        case BlockOpcode.PEN_CLEAR:
             this.source += `${PEN_EXT}.clear();\n`;
             break;
-        case 'pen.down':
+        case BlockOpcode.PEN_DOWN:
             this.source += `${PEN_EXT}._penDown(target);\n`;
             break;
-        case 'pen.changeParam':
+        case BlockOpcode.PEN_COLOR_PARAM_CHANGE:
             this.source += `${PEN_EXT}._setOrChangeColorParam(${this.descendInput(node.param).asString()}, ${this.descendInput(node.value).asNumber()}, ${PEN_STATE}, true);\n`;
             break;
-        case 'pen.changeSize':
+        case BlockOpcode.PEN_SIZE_CHANGE:
             this.source += `${PEN_EXT}._changePenSizeBy(${this.descendInput(node.size).asNumber()}, target);\n`;
             break;
-        case 'pen.legacyChangeHue':
+        case BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGASY:
             this.source += `${PEN_EXT}._changePenHueBy(${this.descendInput(node.hue).asNumber()}, target);\n`;
             break;
-        case 'pen.legacyChangeShade':
+        case BlockOpcode.PEN_COLOR_SHADE_CHANGE_LEGASY:
             this.source += `${PEN_EXT}._changePenShadeBy(${this.descendInput(node.shade).asNumber()}, target);\n`;
             break;
-        case 'pen.legacySetHue':
+        case BlockOpcode.PEN_COLOR_HUE_SET_LEGASY:
             this.source += `${PEN_EXT}._setPenHueToNumber(${this.descendInput(node.hue).asNumber()}, target);\n`;
             break;
-        case 'pen.legacySetShade':
+        case BlockOpcode.PEN_COLOR_HUE_CHANGE_LEGASY:
             this.source += `${PEN_EXT}._setPenShadeToNumber(${this.descendInput(node.shade).asNumber()}, target);\n`;
             break;
-        case 'pen.setColor':
+        case BlockOpcode.PEN_COLOR_SET:
             this.source += `${PEN_EXT}._setPenColorToColor(${this.descendInput(node.color).asColor()}, target);\n`;
             break;
-        case 'pen.setParam':
+        case BlockOpcode.PEN_COLOR_PARAM_SET:
             this.source += `${PEN_EXT}._setOrChangeColorParam(${this.descendInput(node.param).asString()}, ${this.descendInput(node.value).asNumber()}, ${PEN_STATE}, false);\n`;
             break;
-        case 'pen.setSize':
+        case BlockOpcode.PEN_SIZE_SET:
             this.source += `${PEN_EXT}._setPenSizeTo(${this.descendInput(node.size).asNumber()}, target);\n`;
             break;
-        case 'pen.stamp':
+        case BlockOpcode.PEN_STAMP:
             this.source += `${PEN_EXT}._stamp(target);\n`;
             break;
-        case 'pen.up':
+        case BlockOpcode.PEN_UP:
             this.source += `${PEN_EXT}._penUp(target);\n`;
             break;
 
-        case 'procedures.call': {
+        case BlockOpcode.PROCEDURE_CALL: {
             const procedureCode = node.code;
             const procedureVariant = node.variant;
             const procedureData = this.ir.procedures[procedureVariant];
@@ -1134,18 +1062,18 @@ class JSGenerator {
             this.stopScriptAndReturn(this.descendInput(node.value).asSafe());
             break;
 
-        case 'timer.reset':
+        case BlockOpcode.SENSING_TIMER_RESET:
             this.source += 'runtime.ioDevices.clock.resetProjectTimer();\n';
             break;
 
-        case 'tw.debugger':
+        case BlockOpcode.TW_DEBUGGER:
             this.source += 'debugger;\n';
             break;
 
-        case 'var.hide':
+        case BlockOpcode.VAR_HIDE:
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.variable.id)}", element: "checkbox", value: false }, runtime);\n`;
             break;
-        case 'var.set': {
+        case BlockOpcode.VAR_SET: {
             const variable = this.descendVariable(node.variable);
             const value = this.descendInput(node.value);
             variable.setInput(value);
@@ -1155,11 +1083,11 @@ class JSGenerator {
             }
             break;
         }
-        case 'var.show':
+        case BlockOpcode.VAR_SHOW:
             this.source += `runtime.monitorBlocks.changeBlock({ id: "${sanitize(node.variable.id)}", element: "checkbox", value: true }, runtime);\n`;
             break;
 
-        case 'visualReport': {
+        case BlockOpcode.TW_VISUAL_REPORT: {
             const value = this.localVariables.next();
             this.source += `const ${value} = ${this.descendInput(node.input).asUnknown()};`;
             // blocks like legacy no-ops can return a literal `undefined`
