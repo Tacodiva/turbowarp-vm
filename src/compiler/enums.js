@@ -8,7 +8,7 @@
  * @readonly
  * @enum {number}
  */
-const ValueType = {
+const InputType = {
     NUMBER: 1,
     STRING: 2,
     BOOLEAN: 3,
@@ -192,5 +192,5 @@ const InputOpcode = {
 module.exports = {
     StackOpcode,
     InputOpcode,
-    ValueType,
+    InputType,
 };
