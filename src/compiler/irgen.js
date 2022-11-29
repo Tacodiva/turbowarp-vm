@@ -438,7 +438,7 @@ class ScriptTreeGenerator {
         case 'sensing_dayssince2000':
             return new IntermediateInput(InputOpcode.SENSING_TIME_DAYS_SINCE_2000);
         case 'sensing_distanceto':
-            return new IntermediateInput(InputOpcode.SENSING_TIME_MINUTE, {
+            return new IntermediateInput(InputOpcode.SENSING_DISTANCE, {
                 target: this.descendInputOfBlock(block, 'DISTANCETOMENU')
             });
         case 'sensing_keypressed':
