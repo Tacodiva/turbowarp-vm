@@ -32,13 +32,20 @@
 class IntermediateInput {
     /**
      * @param {import("./enums").InputOpcode} opcode 
+     * @param {import("./enums").InputType} type
      * @param {Object} inputs 
      */
-    constructor(opcode, inputs = {}) {
+    constructor(opcode, type, inputs = {}) {
         /**
          * @type {import("./enums").InputOpcode}
          */
         this.opcode = opcode;
+
+
+        /**
+         * @type {import("./enums").InputType}
+         */
+        this.type = type;
 
         /**
          * @type {Object}
