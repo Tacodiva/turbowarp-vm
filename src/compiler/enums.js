@@ -5,15 +5,58 @@
 
 /**
  * Enum for the type of the value that is returned by reporter blocks and stored in constants.
+ * 
+ * At compile time, often we don't know exactly type a value will be but we can tell it must be one of a 
+ * set of types. For this reason, the number value of each type represents a possibility space, where set
+ * bits indicate that their corropoding type *could* be encountered at runtime.
+ * For example, a type of InputType.NUMBER | InputType.STRING means the value will be either a number or
+ * a string at runtime, the compiler can't tell which, but we do know that it's not a boolean or NaN as
+ * those bits are not set. 
+ * 
  * @readonly
  * @enum {number}
  */
 const InputType = {
-    NUMBER: 1,
-    STRING: 2,
-    BOOLEAN: 3,
-    UNKNOWN: 4,
-    NUMBER_OR_NAN: 5,
+    /** The value Infinity */
+    NUMBER_POS_INF: 0x001,
+    /** Any positive numbers excluding 0 and Infinity */
+    NUMBER_POS_REAL: 0x002,
+    /** The value 0 */
+    NUMBER_ZERO: 0x004,
+    /** Any negitive numbers excluding 0 and -Infinity */
+    NUMBER_NEG_REAL: 0x008,
+    /** The value -Infinity */
+    NUMBER_NEG_INF: 0x010,
+
+    /** The value NaN */
+    NUMBER_NAN: 0x020,
+
+    /** Any positive number, excluding 0. Equal to NUMBER_POS_REAL | NUMBER_POS_INF */
+    NUMBER_POS: 0x003,
+    /** Any negitive number, excluding 0. Equal to NUMBER_NEG_REAL | NUMBER_NEG_INF */
+    NUMBER_NEG: 0x018,
+
+    /** Any number, excluding NaN. Equal to NUMBER_POS | NUMBER_ZERO | NUMBER_NEG */
+    NUMBER: 0x01F,
+    /** Any number, including NaN. Equal to NUMBER | NUMBER_NAN */
+    NUMBER_OR_NAN: 0x03F,
+
+    
+    /** Any string which as a non-NaN neumeric interpretation, excluding ''.  */
+    STRING_NUM: 0x040,
+    /** Any string which has no non-NaN neumeric interpretation, including ''. */
+    STRING_NAN: 0x080,
+
+    /** Any string. Equal to STRING_NUM | STRING_NAN */
+    STRING: 0x0C0,
+
+
+    /** Any boolean. */
+    BOOLEAN: 0x100,
+
+
+    /** Any type. Equal to NUMBER_OR_NAN | STRING | BOOLEAN */
+    ANY: 0x1FF
 };
 
 /**
@@ -109,6 +152,11 @@ const StackOpcode = {
  */
 const InputOpcode = {
     CONSTANT: "constant",
+
+    CAST_NUMBER: "cast.toNumber",
+    CAST_NUMBER_OR_NAN: "cast.toNumberOrNaN",
+    CAST_STRING: "cast.toString",
+    CAST_BOOLEAN: "cast.toBoolean",
 
     COMPATIBILITY_LAYER: "compat",
 
