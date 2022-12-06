@@ -37,9 +37,10 @@ class IntermediateInput {
     static getNumberInputType(number) {
         if (number === Infinity) return InputType.NUMBER_POS_INF;
         if (number === -Infinity) return InputType.NUMBER_NEG_INF;
-        if (number < 0) return InputType.NUMBER_NEG;
-        if (number > 0) return InputType.NUMBER_POS;
+        if (number < 0) return InputType.NUMBER_NEG_REAL;
+        if (number > 0) return InputType.NUMBER_POS_REAL;
         if (Number.isNaN(number)) return InputType.NUMBER_NAN;
+        if (Object.is(number, -0)) return InputType.NUMBER_NEG_ZERO;
         return InputType.NUMBER_ZERO;
     }
 
@@ -141,7 +142,7 @@ class IntermediateInput {
                         if (Object.is(numberValue, -0)) this.inputs.value = -0;
                         else this.inputs.value = 0; // Convert NaN to 0
                     }
-                    this.type = InputType.NUMBER;
+                    this.type = IntermediateInput.getNumberInputType(this.inputs.value);
                     break;
                 case InputOpcode.CAST_STRING:
                     this.inputs.value += '';

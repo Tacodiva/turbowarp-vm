@@ -23,40 +23,44 @@ const InputType = {
     NUMBER_POS_REAL: 0x002,
     /** The value 0 */
     NUMBER_ZERO: 0x004,
-    /** Any negitive numbers excluding 0 and -Infinity */
-    NUMBER_NEG_REAL: 0x008,
+    /** The value -0 */
+    NUMBER_NEG_ZERO: 0x008,
+    /** Any negitive numbers excluding -0 and -Infinity */
+    NUMBER_NEG_REAL: 0x010,
     /** The value -Infinity */
-    NUMBER_NEG_INF: 0x010,
+    NUMBER_NEG_INF: 0x020,
 
     /** The value NaN */
-    NUMBER_NAN: 0x020,
+    NUMBER_NAN: 0x040,
 
+    /** Any Zero. Equal to NUMBER_ZERO | NUMBER_NEG_ZERO */
+    NUMBER_ANY_ZERO: 0x00C,
     /** Any positive number, excluding 0. Equal to NUMBER_POS_REAL | NUMBER_POS_INF */
     NUMBER_POS: 0x003,
-    /** Any negitive number, excluding 0. Equal to NUMBER_NEG_REAL | NUMBER_NEG_INF */
-    NUMBER_NEG: 0x018,
+    /** Any negitive number, excluding -0. Equal to NUMBER_NEG_REAL | NUMBER_NEG_INF */
+    NUMBER_NEG: 0x030,
 
-    /** Any number, excluding NaN. Equal to NUMBER_POS | NUMBER_ZERO | NUMBER_NEG */
-    NUMBER: 0x01F,
+    /** Any number, excluding NaN. Equal to NUMBER_POS | NUMBER_ANY_ZERO | NUMBER_NEG */
+    NUMBER: 0x03F,
     /** Any number, including NaN. Equal to NUMBER | NUMBER_NAN */
-    NUMBER_OR_NAN: 0x03F,
+    NUMBER_OR_NAN: 0x07F,
 
     
     /** Any string which as a non-NaN neumeric interpretation, excluding ''.  */
-    STRING_NUM: 0x040,
+    STRING_NUM: 0x080,
     /** Any string which has no non-NaN neumeric interpretation, including ''. */
-    STRING_NAN: 0x080,
+    STRING_NAN: 0x100,
 
     /** Any string. Equal to STRING_NUM | STRING_NAN */
-    STRING: 0x0C0,
+    STRING: 0x180,
 
 
     /** Any boolean. */
-    BOOLEAN: 0x100,
+    BOOLEAN: 0x200,
 
 
     /** Any type. Equal to NUMBER_OR_NAN | STRING | BOOLEAN */
-    ANY: 0x1FF
+    ANY: 0x3FF
 };
 
 /**
