@@ -147,7 +147,7 @@ class JSGenerator {
 
     /**
      * @param {IntermediateInput} block Input node to compile.
-     * @returns {CompiledInput} Compiled input.
+     * @returns {string} Compiled input.
      */
     descendInput (block) {
         const node = block.inputs;
@@ -174,12 +174,12 @@ class JSGenerator {
             if (block.isAlwaysType(InputType.NUMBER)) {
                 if (typeof node.value !== 'number') throw new Error(`JS: '${block.type}' type constant had ${typeof block.value} type value. Expected number.`);
                 if (Object.is(node.value, -0)) return "-0";
-                return node.value.toString() + " /* Number */";
+                return node.value.toString();
             } else if (block.isAlwaysType(InputType.BOOLEAN)) {
                 if (typeof node.value !== 'boolean') throw new Error(`JS: '${block.type}' type constant had ${typeof block.value} type value. Expected boolean.`);
-                return node.value.toString() + " /* Boolean */";
+                return node.value.toString();
             } else if (block.isSometimesType(InputType.STRING)) {
-                return `"${sanitize(node.value.toString())}" /* String */`;
+                return `"${sanitize(node.value.toString())}"`;
             } else throw new Error(`JS: Unknown constant input type '${block.type}'.`);
 
         case InputOpcode.SENSING_KEY_DOWN:
@@ -351,7 +351,7 @@ class JSGenerator {
 
         case InputOpcode.SENSING_ANSWER:
             return `runtime.ext_scratch3_sensing._answer`;
-        case InputOpcode.SENSING_COLOR_TOUCHING_COLOR: // TDTODO Attempt to parse hex code at compilation time
+        case InputOpcode.SENSING_COLOR_TOUCHING_COLOR:
             return `target.colorIsTouchingColor(colorToList(${this.descendInput(node.target)}), colorToList(${this.descendInput(node.mask)}))`;
         case InputOpcode.SENSING_TIME_DATE:
             return `(new Date().getDate())`;
@@ -368,53 +368,43 @@ class JSGenerator {
             return `(new Date().getMinutes())`;
         case InputOpcode.SENSING_TIME_MONTH:
             return `(new Date().getMonth() + 1)`;
-        case InputOpcode.SENSING_OF: {
-            const object = this.descendInput(node.object);
-            const property = node.property;
-            // TDTODO Split this into different input opcodes in order to re-add type info
-            if (node.object.opcode === InputOpcode.CONSTANT) {
-                const isStage = node.object.inputs.value === '_stage_';
-                // Note that if target isn't a stage, we can't assume it exists
-                const objectReference = isStage ? 'stage' : this.evaluateOnce(`runtime.getSpriteTargetByName(${object})`);
-                if (property === 'volume') {
-                    return `(${objectReference} ? ${objectReference}.volume : 0)`;
-                }
-                if (isStage) {
-                    switch (property) {
-                    case 'background #':
-                        // fallthrough for scratch 1.0 compatibility
-                    case 'backdrop #':
-                        return `(${objectReference}.currentCostume + 1)`;
-                    case 'backdrop name':
-                        return `${objectReference}.getCostumes()[${objectReference}.currentCostume].name`;
-                    }
-                } else {
-                    switch (property) {
-                    case 'x position':
-                        return `(${objectReference} ? ${objectReference}.x : 0)`;
-                    case 'y position':
-                        return `(${objectReference} ? ${objectReference}.y : 0)`;
-                    case 'direction':
-                        return `(${objectReference} ? ${objectReference}.direction : 0)`;
-                    case 'costume #':
-                        return `(${objectReference} ? ${objectReference}.currentCostume + 1 : 0)`;
-                    case 'costume name':
-                        return `(${objectReference} ? ${objectReference}.getCostumes()[${objectReference}.currentCostume].name : 0)`;
-                    case 'size':
-                        return `(${objectReference} ? ${objectReference}.size : 0)`;
-                    }
-                }
-                const variableReference = this.evaluateOnce(`${objectReference} && ${objectReference}.lookupVariableByNameAndType("${sanitize(property)}", "", true)`);
-                return `(${variableReference} ? ${variableReference}.value : 0)`;
-            }
-            return `runtime.ext_scratch3_sensing.getAttributeOf({OBJECT: ${object}, PROPERTY: "${sanitize(property)}" })`;
-        }
-        case InputOpcode.SENSING_TIME_SECOND:
+        case InputOpcode.SENSING_OF:
+            return `runtime.ext_scratch3_sensing.getAttributeOf({OBJECT: ${this.descendInput(node.object)}, PROPERTY: "${sanitize(node.property)}" })`;
+        case InputOpcode.SENSING_OF_VOLUME: {
+            const targetRef = this.descendTargetReference(node.object);
+            return `(${targetRef} ? ${targetRef}.volume : 0)`;
+        } case InputOpcode.SENSING_OF_BACKDROP_NUMBER:
+            return `(stage.currentCostume + 1)`;
+        case InputOpcode.SENSING_OF_BACKDROP_NAME:
+            return `stage.getCostumes()[stage.currentCostume].name`;
+        case InputOpcode.SENSING_OF_POS_X: {
+            const targetRef = this.descendTargetReference(node.object);
+            return `(${targetRef} ? ${targetRef}.x : 0)`;
+        } case InputOpcode.SENSING_OF_POS_Y: {
+            const targetRef = this.descendTargetReference(node.object);
+            return `(${targetRef} ? ${targetRef}.y : 0)`;
+        } case InputOpcode.SENSING_OF_DIRECTION: {
+            const targetRef = this.descendTargetReference(node.object);
+            return `(${targetRef} ? ${targetRef}.direction : 0)`;
+        } case InputOpcode.SENSING_OF_COSTUME_NUMBER: {
+            const targetRef = this.descendTargetReference(node.object);
+            return `(${targetRef} ? ${targetRef}.currentCostume + 1 : 0)`;
+        } case InputOpcode.SENSING_OF_COSTUME_NAME: {
+            const targetRef = this.descendTargetReference(node.object);
+            return `(${targetRef} ? ${targetRef}.getCostumes()[${targetRef}.currentCostume].name : 0)`;
+        } case InputOpcode.SENSING_OF_SIZE: {
+            const targetRef = this.descendTargetReference(node.object);
+            return `(${targetRef} ? ${targetRef}.size : 0)`;
+        } case InputOpcode.SENSING_OF_VAR: {
+            const targetRef = this.descendTargetReference(node.object);
+            const varRef = this.evaluateOnce(`${targetRef} && ${targetRef}.lookupVariableByNameAndType("${sanitize(node.property)}", "", true)`);
+            return `(${varRef} ? ${varRef}.value : 0)`;
+        } case InputOpcode.SENSING_TIME_SECOND:
             return `(new Date().getSeconds())`;
         case InputOpcode.SENSING_TOUCHING_OBJECT:
             return `target.isTouchingObject(${this.descendInput(node.object)})`;
         case InputOpcode.SENSING_TOUCHING_COLOR:
-            return `target.isTouchingColor(colorToList(${this.descendInput(node.color)}))`; // TDTODO Color
+            return `target.isTouchingColor(colorToList(${this.descendInput(node.color)}))`;
         case InputOpcode.SENSING_USERNAME:
             return 'runtime.ioDevices.userData.getUsername()';
         case InputOpcode.SENSING_TIME_YEAR:
@@ -716,7 +706,7 @@ class JSGenerator {
         case StackOpcode.PEN_COLOR_SHADE_SET_LEGACY:
             this.source += `${PEN_EXT}._setPenShadeToNumber(${this.descendInput(node.shade)}, target);\n`;
             break;
-        case StackOpcode.PEN_COLOR_SET: // TDTODO Color
+        case StackOpcode.PEN_COLOR_SET:
             this.source += `${PEN_EXT}._setPenColorToColor(${this.descendInput(node.color)}, target);\n`;
             break;
         case StackOpcode.PEN_COLOR_PARAM_SET:
@@ -801,6 +791,18 @@ class JSGenerator {
             log.warn(`JS: Unknown stacked block: ${block.opcode}`, node);
             throw new Error(`JS: Unknown stacked block: ${block.opcode}`);
         }
+    }
+
+    /**
+     * Compiles a reference to a target.
+     * @param {IntermediateInput} input The target reference. Must be a string.
+     * @returns {string} The compiled target reference
+     */
+    descendTargetReference(input) {
+        if (!input.isAlwaysType(InputType.STRING))
+            throw new Error(`JS: Object references must be strings!`);
+        if (input.isConstant('_stage_')) return 'stage';
+        return this.evaluateOnce(`runtime.getSpriteTargetByName(${this.descendInput(input)})`);
     }
 
     /**

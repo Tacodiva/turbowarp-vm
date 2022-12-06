@@ -479,10 +479,42 @@ class ScriptTreeGenerator {
         case 'sensing_mousey':
             return new IntermediateInput(InputOpcode.SENSING_MOUSE_Y, InputType.NUMBER);
         case 'sensing_of':
-            return new IntermediateInput(InputOpcode.SENSING_OF, InputType.ANY, {
-                property: block.fields.PROPERTY.value,
-                object: this.descendInputOfBlock(block, 'OBJECT').toType(InputType.STRING)
-            });
+            const property = block.fields.PROPERTY.value;
+            const object = this.descendInputOfBlock(block, 'OBJECT').toType(InputType.STRING);
+
+            if (object.opcode !== InputOpcode.CONSTANT)
+                return new IntermediateInput(InputOpcode.SENSING_OF, InputType.ANY, { object, property });
+
+            if (property === 'volume') {
+                return new IntermediateInput(InputOpcode.SENSING_OF_VOLUME, InputType.NUMBER, { object, property });
+            }
+
+            if (object.isConstant("_stage_")) {
+                switch (property) {
+                    case 'background #': // fallthrough for scratch 1.0 compatibility
+                    case 'backdrop #':
+                        return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NUMBER, InputType.NUMBER);
+                    case 'backdrop name':
+                        return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NAME, InputType.STRING);
+                }
+            } else {
+                switch (property) {
+                    case 'x position':
+                        return new IntermediateInput(InputOpcode.SENSING_OF_POS_X, InputType.NUMBER, { object });
+                    case 'y position':
+                        return new IntermediateInput(InputOpcode.SENSING_OF_POS_Y, InputType.NUMBER, { object });
+                    case 'direction':
+                        return new IntermediateInput(InputOpcode.SENSING_OF_DIRECTION, InputType.NUMBER, { object });
+                    case 'costume #':
+                        return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NUMBER, InputType.NUMBER, { object });
+                    case 'costume name':
+                        return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NAME, InputType.STRING, { object });
+                    case 'size':
+                        return new IntermediateInput(InputOpcode.SENSING_OF_SIZE, InputType.NUMBER, { object });
+                }
+            }
+            
+            return new IntermediateInput(InputOpcode.SENSING_OF_VAR, InputType.ANY, { object, property });
         case 'sensing_timer':
             this.usesTimer = true;
             return new IntermediateInput(InputOpcode.SENSING_TIMER_GET, InputType.NUMBER);
