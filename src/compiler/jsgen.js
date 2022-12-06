@@ -42,7 +42,7 @@ const functionNameVariablePool = new VariablePool('fun');
  */
 const generatorNameVariablePool = new VariablePool('gen');
 
-const isSafeInputForEqualsOptimization = (input, allowNaN) => {
+const isSafeInputForEqualsOptimization = (input) => {
     // Only optimize constants
     if (input.opcode !== InputOpcode.CONSTANT) return false;
     // Only optimize when the constant can always be thought of as a number
