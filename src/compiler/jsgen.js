@@ -42,45 +42,17 @@ const functionNameVariablePool = new VariablePool('fun');
  */
 const generatorNameVariablePool = new VariablePool('gen');
 
-const getNamesOfCostumesAndSounds = runtime => {
-    const result = new Set();
-    for (const target of runtime.targets) {
-        if (target.isOriginal) {
-            const sprite = target.sprite;
-            for (const costume of sprite.costumes) {
-                result.add(costume.name);
-            }
-            for (const sound of sprite.sounds) {
-                result.add(sound.name);
-            }
-        }
-    }
-    return result;
-};
-
 const isSafeInputForEqualsOptimization = (input, allowNaN) => {
     // Only optimize constants
     if (input.opcode !== InputOpcode.CONSTANT) return false;
     // Only optimize when the constant can always be thought of as a number
-    if (!input.isAlwaysType(InputType.NUMBER)) return false;
-    // Never optimize 0, as if '< 0 = "" >' was optimized it would turn into
-    //  `0 === +""`, which would be true even though Scratch would return false.
-    if (input.isSometimesType(InputType.NUMBER_ZERO)) return false;
-    return true;
+    if (input.isAlwaysType(InputType.NUMBER) || input.isAlwaysType(InputType.STRING_NUM)) {
+        // Never optimize 0, as if '< 0 = "" >' was optimized it would turn into
+        //  `0 === +""`, which would be true even though Scratch would return false.
+        return (+input.inputs.value) !== 0;
+    }
+    return false;
 }
-
-const isSafeInputForNumberOptimization = (input, allowNaN) => {
-    // If the input is a number, it can be optimized like a number
-    if (input.isAlwaysType(allowNaN ? InputType.NUMBER_OR_NAN : InputType.NUMBER)) return true;
-    // If it isn't a number and it's not a constant we can't assume it's a number, so we can't optimize
-    if (input.opcode !== InputOpcode.CONSTANT) return false;
-    const value = +input.inputs.value;
-    // NaN can't be optimized like a number because Scratch treats NaN differently to JS
-    if (Number.isNaN(value)) return false;
-    // Empty strings evaluate to 0 but are not safe to optimize into numbers, as 0 != "".
-    if (value == 0 && input.inputs.value.toString().trim() === '') return false;
-    return true;
-};
 
 /**
  * A frame contains some information about the current substack being compiled.
@@ -129,8 +101,6 @@ class JSGenerator {
          * @type {Frame}
          */
         this.currentFrame = null;
-
-        this.namesOfCostumesAndSounds = getNamesOfCostumesAndSounds(target.runtime);
 
         this.localVariables = new VariablePool('a');
         this._setupVariablesPool = new VariablePool('b');
@@ -204,12 +174,12 @@ class JSGenerator {
             if (block.isAlwaysType(InputType.NUMBER)) {
                 if (typeof node.value !== 'number') throw new Error(`JS: '${block.type}' type constant had ${typeof block.value} type value. Expected number.`);
                 if (Object.is(node.value, -0)) return "-0";
-                return node.value.toString();
+                return node.value.toString() + " /* Number */";
             } else if (block.isAlwaysType(InputType.BOOLEAN)) {
                 if (typeof node.value !== 'boolean') throw new Error(`JS: '${block.type}' type constant had ${typeof block.value} type value. Expected boolean.`);
-                return node.value.toString();
+                return node.value.toString() + " /* Boolean */";
             } else if (block.isSometimesType(InputType.STRING)) {
-                return `"${sanitize(node.value.toString())}"`;
+                return `"${sanitize(node.value.toString())}" /* String */`;
             } else throw new Error(`JS: Unknown constant input type '${block.type}'.`);
 
         case InputOpcode.SENSING_KEY_DOWN:
@@ -221,8 +191,8 @@ class JSGenerator {
             return `listContents(${this.referenceVariable(node.list)})`;
         case InputOpcode.LIST_GET: {
             if (environment.supportsNullishCoalescing) {
-                if (isSafeInputForNumberOptimization(node.index, true)) {
-                    return `(${this.referenceVariable(node.list)}.value[(${this.descendInput(node.index.toType(InputType.NUMBER))}) - 1] ?? "")`;
+                if (node.index.isAlwaysType(InputType.NUMBER_NAN)) {
+                    return `(${this.referenceVariable(node.list)}.value[(${this.descendInput(node.index)} | 0) - 1] ?? "")`;
                 }
                 if (node.index.isConstant('last')) {
                     return `(${this.referenceVariable(node.list)}.value[${this.referenceVariable(node.list)}.value.length - 1] ?? "")`;
@@ -285,17 +255,15 @@ class JSGenerator {
             const right = node.right;
 
             // When both operands are known to be numbers, we can use ===
-            if (isSafeInputForNumberOptimization(left, false) && isSafeInputForNumberOptimization(right, false)) {
-                return `(${this.descendInput(left.toType(InputType.NUMBER))} === ${this.descendInput(right.toType(InputType.NUMBER))})`;
+            if (left.isAlwaysType(InputType.NUMBER) && right.isAlwaysType(InputType.NUMBER)) {
+                return `(${this.descendInput(left)} === ${this.descendInput(right)})`;
             }
             // In certain conditions, we can use === when one of the operands is known to be a safe number.
             if (isSafeInputForEqualsOptimization(left) || isSafeInputForEqualsOptimization(right)) {
                 return `(${this.descendInput(left.toType(InputType.NUMBER))} === ${this.descendInput(right.toType(InputType.NUMBER))})`;
             }
-            // TDTODO Boolean comparison optimisation?
-
             // When either operand is known to never be a number, only use string comparison to avoid all number parsing.
-            if (left.isAlwaysType(InputType.STRING) || right.isAlwaysType(InputType.STRING)) {
+            if (left.isAlwaysType(InputType.STRING_NAN) || right.isAlwaysType(InputType.STRING_NAN)) {
                 return `(${this.descendInput(left.toType(InputType.STRING))}.toLowerCase() === ${this.descendInput(right.toType(InputType.STRING))}.toLowerCase())`;
             }
             // No compile-time optimizations possible - use fallback method.
@@ -309,16 +277,16 @@ class JSGenerator {
             const left = node.left;
             const right = node.right;
             // When the left operand is a number and the right operand is a number or NaN, we can use >
-            if (isSafeInputForNumberOptimization(left, false) && isSafeInputForNumberOptimization(right, true)) {
-                return `(${this.descendInput(left.toType(InputType.NUMBER))} > ${this.descendInput(right.toType(InputType.NUMBER_OR_NAN))})`;
+            if (left.isAlwaysType(InputType.NUMBER) && right.isAlwaysType(InputType.NUMBER_OR_NAN)) {
+                return `(${this.descendInput(left)} > ${this.descendInput(right)})`;
             }
             // When the left operand is a number or NaN and the right operand is a number, we can negate <=
-            if (isSafeInputForNumberOptimization(left, true) && isSafeInputForNumberOptimization(right, false)) {
-                return `!(${this.descendInput(left.toType(InputType.NUMBER_OR_NAN))} <= ${this.descendInput(right.toType(InputType.NUMBER))})`;
+            if (left.isAlwaysType(InputType.NUMBER_OR_NAN) && right.isAlwaysType(InputType.NUMBER)) {
+                return `!(${this.descendInput(left)} <= ${this.descendInput(right)})`;
             }
             // When either operand is known to never be a number, avoid all number parsing.
-            if (left.isNeverType(InputType.NUMBER) || right.isNeverType(InputType.NUMBER)) {
-                return `(${this.descendInput(left.toType(InputType.STRING))}.toLowerCase() < ${this.descendInput(right.toType(InputType.STRING))}.toLowerCase())`;
+            if (left.isAlwaysType(InputType.STRING_NAN) || right.isAlwaysType(InputType.STRING_NAN)) {
+                return `(${this.descendInput(left.toType(InputType.STRING))}.toLowerCase() > ${this.descendInput(right.toType(InputType.STRING))}.toLowerCase())`;
             }
             // No compile-time optimizations possible - use fallback method.
             return `compareGreaterThan(${this.descendInput(left)}, ${this.descendInput(right)})`;
@@ -331,21 +299,21 @@ class JSGenerator {
             const left = node.left;
             const right = node.right;
             // When the left operand is a number or NaN and the right operand is a number, we can use <
-            if (isSafeInputForNumberOptimization(left, true) && isSafeInputForNumberOptimization(right, false)) {
+            if (left.isAlwaysType(InputType.NUMBER) && right.isAlwaysType(InputType.NUMBER_OR_NAN)) {
                 return `(${this.descendInput(left.toType(InputType.NUMBER_OR_NAN))} < ${this.descendInput(right.toType(InputType.NUMBER))})`;
             }
             // When the left operand is a number and the right operand is a number or NaN, we can negate >=
-            if (isSafeInputForNumberOptimization(left, false) && isSafeInputForNumberOptimization(right, true)) {
+            if (left.isAlwaysType(InputType.NUMBER_OR_NAN) && right.isAlwaysType(InputType.NUMBER)) {
                 return `!(${this.descendInput(left.toType(InputType.NUMBER))} >= ${this.descendInput(right.toType(InputType.NUMBER_OR_NAN))})`;
             }
             // When either operand is known to never be a number, avoid all number parsing.
-            if (left.isNeverType(InputType.NUMBER) || right.isNeverType(InputType.NUMBER)) {
+            if (left.isAlwaysType(InputType.STRING_NAN) || right.isAlwaysType(InputType.STRING_NAN)) {
                 return `(${this.descendInput(left.toType(InputType.STRING))}.toLowerCase() < ${this.descendInput(right.toType(InputType.STRING))}.toLowerCase())`;
             }
             // No compile-time optimizations possible - use fallback method.
             return `compareLessThan(${this.descendInput(left)}, ${this.descendInput(right)})`;
         }
-        case InputOpcode.OP_LETTER_OF: // TDTODO Pretty sure the '| 0' here is unecessary
+        case InputOpcode.OP_LETTER_OF:
             return `((${this.descendInput(node.string)})[(${this.descendInput(node.letter)} | 0) - 1] || "")`;
         case InputOpcode.OP_LOG_E:
             return `Math.log(${this.descendInput(node.value)})`;

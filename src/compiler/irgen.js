@@ -78,6 +78,19 @@ class ScriptTreeGenerator {
         this.variableCache = {};
 
         this.usesTimer = false;
+
+        this.namesOfCostumesAndSounds = new Set();
+        for (const target of this.runtime.targets) {
+            if (target.isOriginal) {
+                const sprite = target.sprite;
+                for (const costume of sprite.costumes) {
+                    this.namesOfCostumesAndSounds.add(costume.name);
+                }
+                for (const sound of sprite.sounds) {
+                    this.namesOfCostumesAndSounds.add(sound.name);
+                }
+            }
+        }
     }
 
     setProcedureVariant (procedureVariant) {
@@ -127,26 +140,21 @@ class ScriptTreeGenerator {
         constant += '';
         const numConstant = +constant;
 
-        if (!preserveStrings) {
-            if (!Number.isNaN(numConstant) && constant.trim() !== '') {
-                let type = IntermediateInput.getNumberInputType(numConstant);
-                if (numConstant.toString() !== constant) {
-                    type |= InputType.STRING;
-                }
-                return new IntermediateInput(InputOpcode.CONSTANT, type, { value: numConstant });
-            } else {
-                // TDTODO Parse the constant as a boolean if we can without messing anything up
-            }
+        if (!Number.isNaN(numConstant) && constant.trim() !== '') {
+            if (!(preserveStrings && this.namesOfCostumesAndSounds.has(constant)) && numConstant.toString() === constant) {
+                return new IntermediateInput(InputOpcode.CONSTANT, IntermediateInput.getNumberInputType(numConstant), { value: numConstant });
+            }            
+            return new IntermediateInput(InputOpcode.CONSTANT, InputType.STRING_NUM, { value: constant });
         }
 
-        return new IntermediateInput(InputOpcode.CONSTANT, InputType.STRING, { value: constant });
+        return new IntermediateInput(InputOpcode.CONSTANT, InputType.STRING_NAN, { value: constant });
     }
 
     /**
      * Descend into a child input of a block. (eg. the input STRING of "length of ( )")
      * @param {*} parentBlock The parent Scratch block that contains the input.
      * @param {string} inputName The name of the input to descend into.
-     * TDTODO Document
+     * @param {boolean} preserveStrings Should this input keep the names of costumes and sounds at strings.
      * @private
      * @returns {IntermediateInput} Compiled input node for this input.
      */
@@ -169,8 +177,7 @@ class ScriptTreeGenerator {
     /**
      * Descend into an input. (eg. "length of ( )")
      * @param {*} block The parent Scratch block input.
-     * TDTODO Document
-     * TDTODO Move NaN comments from jsgen to here
+     * @param {boolean} preserveStrings Should this input keep the names of costumes and sounds at strings.
      * @private
      * @returns {IntermediateInput} Compiled input node for this input.
      */
@@ -372,7 +379,6 @@ class ScriptTreeGenerator {
             if (from.opcode === InputOpcode.CONSTANT && to.opcode === InputOpcode.CONSTANT) {
                 const sFrom = from.inputs.value;
                 const sTo = to.inputs.value;
-                // TDTODO I think we can just check from.type and to.type
                 const nFrom = Cast.toNumber(sFrom);
                 const nTo = Cast.toNumber(sTo);
                 // If both numbers are the same, random is unnecessary.

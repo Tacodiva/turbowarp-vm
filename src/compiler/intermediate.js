@@ -35,8 +35,11 @@ class IntermediateStack {
 class IntermediateInput {
 
     static getNumberInputType(number) {
+        if (number === Infinity) return InputType.NUMBER_POS_INF;
+        if (number === -Infinity) return InputType.NUMBER_NEG_INF;
         if (number < 0) return InputType.NUMBER_NEG;
         if (number > 0) return InputType.NUMBER_POS;
+        if (Number.isNaN(number)) return InputType.NUMBER_NAN;
         return InputType.NUMBER_ZERO;
     }
 
@@ -62,6 +65,11 @@ class IntermediateInput {
         this.inputs = inputs;
     }
 
+    /**
+     * Is this input a constant whos value equals value.
+     * @param {*} value The value
+     * @returns {boolean}
+     */
     isConstant(value) {
         if (this.opcode !== InputOpcode.CONSTANT) return false;
         var equal = this.inputs.value === value;
@@ -69,19 +77,31 @@ class IntermediateInput {
         return equal;
     }
 
+    /**
+     * Is the type of this input guaranteed to always be the type at runtime.
+     * @param {InputType} type 
+     * @returns {boolean}
+     */
     isAlwaysType(type) {
         return (this.type & type) === this.type;
     }
 
+    /**
+     * Is it possible for this input to be the type at runtime.
+     * @param {InputType} type 
+     * @returns 
+     */
     isSometimesType(type) {
         return (this.type & type) !== 0;
     }
 
-    isNeverType(type) {
-        return !this.isSometimesType(type);
-    }
-
-    // TDTODO Document
+    /**
+     * Converts this input to a target type.
+     * If this input is a constant the conversion is performed now, at compile time.
+     * If the input changes, the conversion is performed at runtime.
+     * @param {InputType} targetType 
+     * @returns {IntermediateInput} An input with the new type.
+     */
     toType(targetType) {
         let castOpcode;
         switch (targetType) {
@@ -98,8 +118,8 @@ class IntermediateInput {
                 castOpcode = InputOpcode.CAST_STRING;
                 break;
             default:
-                log.warn(`IR: Cannot cast to type: ${targetType}`, this);
-                throw new Error(`IR: Cannot cast to type: ${targetType}`);
+                log.warn(`Cannot cast to type: ${targetType}`, this);
+                throw new Error(`Cannot cast to type: ${targetType}`);
         }
         
         if (this.isAlwaysType(targetType)) return this;
