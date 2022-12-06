@@ -1028,7 +1028,7 @@ class ScriptTreeGenerator {
      * @param {*} parentBlock The parent Scratch block that contains the stack to parse.
      * @param {string} substackName The name of the stack to descend into.
      * @private
-     * @returns {IntermediateStack} Stacked blocks.
+     * @returns {IntermediateStack[]} Stacked blocks.
      */
     descendSubstack (parentBlock, substackName) {
         const input = parentBlock.inputs[substackName];
@@ -1043,7 +1043,7 @@ class ScriptTreeGenerator {
      * Descend into and walk the siblings of a stack.
      * @param {string} startingBlockId The ID of the first block of a stack.
      * @private
-     * @returns {Node[]} List of stacked block nodes.
+     * @returns {IntermediateStack[]} List of stacked block nodes.
      */
     walkStack (startingBlockId) {
         const result = [];
