@@ -12,8 +12,9 @@ class IntermediateStack {
     /**
      * @param {import("./enums").StackOpcode} opcode 
      * @param {Object} inputs 
+     * @param {boolean} yields
      */
-    constructor(opcode, inputs = {}) {
+    constructor(opcode, inputs = {}, yields = false) {
         /**
          * The type of the stackable block.
          * @type {import("./enums").StackOpcode}
@@ -21,10 +22,16 @@ class IntermediateStack {
         this.opcode = opcode;
 
         /**
-         * The 
+         * The inputs of this block.
          * @type {Object} 
          */
         this.inputs = inputs;
+
+        /**
+         * Does this block cause a yield
+         * @type {boolean}
+         */
+        this.yields = yields;
     }
 }
 
@@ -48,8 +55,9 @@ class IntermediateInput {
      * @param {InputOpcode} opcode 
      * @param {InputType} type
      * @param {Object} inputs 
+     * @param {boolean} yields
      */
-    constructor(opcode, type, inputs = {}) {
+    constructor(opcode, type, inputs = {}, yields = false) {
         /**
          * @type {InputOpcode}
          */
@@ -64,6 +72,11 @@ class IntermediateInput {
          * @type {Object}
          */
         this.inputs = inputs;
+
+        /**
+         * @type {boolean}
+         */
+        this.yields = yields;
     }
 
     /**
