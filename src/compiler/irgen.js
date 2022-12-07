@@ -139,12 +139,21 @@ class ScriptTreeGenerator {
 
         constant += '';
         const numConstant = +constant;
+        const preserve = preserveStrings && this.namesOfCostumesAndSounds.has(constant);
 
         if (!Number.isNaN(numConstant) && constant.trim() !== '') {
-            if (!(preserveStrings && this.namesOfCostumesAndSounds.has(constant)) && numConstant.toString() === constant) {
+            if (!preserve && numConstant.toString() === constant) {
                 return new IntermediateInput(InputOpcode.CONSTANT, IntermediateInput.getNumberInputType(numConstant), { value: numConstant });
             }
             return new IntermediateInput(InputOpcode.CONSTANT, InputType.STRING_NUM, { value: constant });
+        }
+
+        if (!preserve) {
+            if (constant === "true") {
+                return new IntermediateInput(InputOpcode.CONSTANT, InputType.STRING_BOOLEAN, { value: constant });
+            } else if (constant === "false") {
+                return new IntermediateInput(InputOpcode.CONSTANT, InputType.STRING_BOOLEAN, { value: constant });
+            }
         }
 
         return new IntermediateInput(InputOpcode.CONSTANT, InputType.STRING_NAN, { value: constant });
@@ -216,7 +225,7 @@ class ScriptTreeGenerator {
             const index = this.script.arguments.lastIndexOf(name);
             if (index === -1) {
                 if (name.toLowerCase() === 'is compiled?' || name.toLowerCase() === 'is turbowarp?') {
-                    return this.createConstantInput(true);
+                    return this.createConstantInput(true).toType(InputType.BOOLEAN);
                 }
                 return this.createConstantInput(0);
             }
@@ -579,7 +588,7 @@ class ScriptTreeGenerator {
         case 'control_all_at_once':
             // In Scratch 3, this block behaves like "if 1 = 1"
             return new IntermediateStackBlock(StackOpcode.CONTROL_IF_ELSE, {
-                condition: this.createConstantInput(true),
+                condition: this.createConstantInput(true).toType(InputType.BOOLEAN),
                 whenTrue: this.descendSubstack(block, 'SUBSTACK'),
                 whenFalse: new IntermediateStack()
             });
@@ -591,7 +600,7 @@ class ScriptTreeGenerator {
             return new IntermediateStackBlock(StackOpcode.CONTROL_CLONE_DELETE, {}, true);
         case 'control_forever':
             return new IntermediateStackBlock(StackOpcode.CONTROL_WHILE, {
-                condition: this.createConstantInput(true),
+                condition: this.createConstantInput(true).toType(InputType.BOOLEAN),
                 do: this.descendSubstack(block, 'SUBSTACK')
             }, this.analyzeLoop());
         case 'control_for_each':

@@ -153,10 +153,13 @@ class JSGenerator {
             return `toBoolean(p${node.index})`;
         case InputOpcode.PROCEDURE_ARG_STRING_NUMBER:
             return `p${node.index}`;
-
         case InputOpcode.CAST_BOOLEAN:
             return `toBoolean(${this.descendInput(node.target)})`;
         case InputOpcode.CAST_NUMBER:
+            if (node.target.isAlwaysType(InputType.BOOLEAN_INTERPRETABLE))
+                return `(+${this.descendInput(node.target.toType(InputType.BOOLEAN))})`;
+            if (node.target.isAlwaysType(InputType.NUMBER_OR_NAN))
+                return `(${this.descendInput(node.target)} || 0)`;
             return `(+${this.descendInput(node.target)} || 0)`;
         case InputOpcode.CAST_NUMBER_OR_NAN:
             return `(+${this.descendInput(node.target)})`;
@@ -188,8 +191,8 @@ class JSGenerator {
             return `listContents(${this.referenceVariable(node.list)})`;
         case InputOpcode.LIST_GET: {
             if (environment.supportsNullishCoalescing) {
-                if (node.index.isAlwaysType(InputType.NUMBER_NAN)) {
-                    return `(${this.referenceVariable(node.list)}.value[(${this.descendInput(node.index)} | 0) - 1] ?? "")`;
+                if (node.index.isAlwaysType(InputType.NUMBER_INTERPRETABLE | InputType.NUMBER_NAN)) {
+                    return `(${this.referenceVariable(node.list)}.value[(${this.descendInput(node.index.toType(InputType.NUMBER_OR_NAN))} | 0) - 1] ?? "")`;
                 }
                 if (node.index.isConstant('last')) {
                     return `(${this.referenceVariable(node.list)}.value[${this.referenceVariable(node.list)}.value.length - 1] ?? "")`;
@@ -252,15 +255,15 @@ class JSGenerator {
             const right = node.right;
 
             // When both operands are known to be numbers, we can use ===
-            if (left.isAlwaysType(InputType.NUMBER) && right.isAlwaysType(InputType.NUMBER)) {
-                return `(${this.descendInput(left)} === ${this.descendInput(right)})`;
+            if (left.isAlwaysType(InputType.NUMBER_INTERPRETABLE) && right.isAlwaysType(InputType.NUMBER_INTERPRETABLE)) {
+                return `(${this.descendInput(left.toType(InputType.NUMBER))} === ${this.descendInput(right.toType(InputType.NUMBER))})`;
             }
             // In certain conditions, we can use === when one of the operands is known to be a safe number.
             if (isSafeInputForEqualsOptimization(left) || isSafeInputForEqualsOptimization(right)) {
                 return `(${this.descendInput(left.toType(InputType.NUMBER))} === ${this.descendInput(right.toType(InputType.NUMBER))})`;
             }
             // When either operand is known to never be a number, only use string comparison to avoid all number parsing.
-            if (left.isAlwaysType(InputType.STRING_NAN) || right.isAlwaysType(InputType.STRING_NAN)) {
+            if (!left.isSometimesType(InputType.NUMBER_INTERPRETABLE) || !right.isSometimesType(InputType.NUMBER_INTERPRETABLE)) {
                 return `(${this.descendInput(left.toType(InputType.STRING))}.toLowerCase() === ${this.descendInput(right.toType(InputType.STRING))}.toLowerCase())`;
             }
             // No compile-time optimizations possible - use fallback method.
@@ -274,15 +277,15 @@ class JSGenerator {
             const left = node.left;
             const right = node.right;
             // When the left operand is a number and the right operand is a number or NaN, we can use >
-            if (left.isAlwaysType(InputType.NUMBER) && right.isAlwaysType(InputType.NUMBER_OR_NAN)) {
-                return `(${this.descendInput(left)} > ${this.descendInput(right)})`;
+            if (left.isAlwaysType(InputType.NUMBER_INTERPRETABLE) && right.isAlwaysType(InputType.NUMBER_INTERPRETABLE | InputType.NUMBER_NAN)) {
+                return `(${this.descendInput(left.toType(InputType.NUMBER))} > ${this.descendInput(right.toType(InputType.NUMBER_OR_NAN))})`;
             }
             // When the left operand is a number or NaN and the right operand is a number, we can negate <=
-            if (left.isAlwaysType(InputType.NUMBER_OR_NAN) && right.isAlwaysType(InputType.NUMBER)) {
-                return `!(${this.descendInput(left)} <= ${this.descendInput(right)})`;
+            if (left.isAlwaysType(InputType.NUMBER_INTERPRETABLE | InputType.NUMBER_NAN) && right.isAlwaysType(InputType.NUMBER_INTERPRETABLE)) {
+                return `!(${this.descendInput(left.toType(InputType.NUMBER_OR_NAN))} <= ${this.descendInput(right.toType(InputType.NUMBER))})`;
             }
             // When either operand is known to never be a number, avoid all number parsing.
-            if (left.isAlwaysType(InputType.STRING_NAN) || right.isAlwaysType(InputType.STRING_NAN)) {
+            if (!left.isSometimesType(InputType.NUMBER_INTERPRETABLE) || !right.isSometimesType(InputType.NUMBER_INTERPRETABLE)) {
                 return `(${this.descendInput(left.toType(InputType.STRING))}.toLowerCase() > ${this.descendInput(right.toType(InputType.STRING))}.toLowerCase())`;
             }
             // No compile-time optimizations possible - use fallback method.
@@ -296,15 +299,15 @@ class JSGenerator {
             const left = node.left;
             const right = node.right;
             // When the left operand is a number or NaN and the right operand is a number, we can use <
-            if (left.isAlwaysType(InputType.NUMBER) && right.isAlwaysType(InputType.NUMBER_OR_NAN)) {
+            if (left.isAlwaysType(InputType.NUMBER_INTERPRETABLE | InputType.NUMBER_NAN) && right.isAlwaysType(InputType.NUMBER_INTERPRETABLE)) {
                 return `(${this.descendInput(left.toType(InputType.NUMBER_OR_NAN))} < ${this.descendInput(right.toType(InputType.NUMBER))})`;
             }
             // When the left operand is a number and the right operand is a number or NaN, we can negate >=
-            if (left.isAlwaysType(InputType.NUMBER_OR_NAN) && right.isAlwaysType(InputType.NUMBER)) {
+            if (left.isAlwaysType(InputType.NUMBER_INTERPRETABLE) && right.isAlwaysType(InputType.NUMBER_INTERPRETABLE | InputType.NUMBER_NAN)) {
                 return `!(${this.descendInput(left.toType(InputType.NUMBER))} >= ${this.descendInput(right.toType(InputType.NUMBER_OR_NAN))})`;
             }
             // When either operand is known to never be a number, avoid all number parsing.
-            if (left.isAlwaysType(InputType.STRING_NAN) || right.isAlwaysType(InputType.STRING_NAN)) {
+            if (!left.isSometimesType(InputType.NUMBER_INTERPRETABLE) || !right.isSometimesType(InputType.NUMBER_INTERPRETABLE)) {
                 return `(${this.descendInput(left.toType(InputType.STRING))}.toLowerCase() < ${this.descendInput(right.toType(InputType.STRING))}.toLowerCase())`;
             }
             // No compile-time optimizations possible - use fallback method.
@@ -818,8 +821,8 @@ class JSGenerator {
     }
 
     /**
-     * @param {IntermediateStack} stack 
-     * @param {Frame} frame 
+     * @param {IntermediateStack} stack
+     * @param {Frame} frame
      */
     descendStack (stack, frame) {
         // Entering a stack -- all bets are off.

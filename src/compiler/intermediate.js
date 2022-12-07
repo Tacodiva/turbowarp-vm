@@ -147,6 +147,10 @@ class IntermediateInput {
                     break;
                 case InputOpcode.CAST_NUMBER:
                 case InputOpcode.CAST_NUMBER_OR_NAN:
+                    if (this.isAlwaysType(InputType.BOOLEAN_INTERPRETABLE)) {
+                        this.type = InputType.NUMBER;
+                        this.inputs.value = +Cast.toBoolean(this.inputs.value);
+                    }
                     const numberValue = +this.inputs.value;
                     if (numberValue) {
                         this.inputs.value = numberValue;

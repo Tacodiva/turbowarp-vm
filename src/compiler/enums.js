@@ -5,14 +5,14 @@
 
 /**
  * Enum for the type of the value that is returned by reporter blocks and stored in constants.
- * 
- * At compile time, often we don't know exactly type a value will be but we can tell it must be one of a 
+ *
+ * At compile time, often we don't know exactly type a value will be but we can tell it must be one of a
  * set of types. For this reason, the number value of each type represents a possibility space, where set
  * bits indicate that their corropoding type *could* be encountered at runtime.
  * For example, a type of InputType.NUMBER | InputType.STRING means the value will be either a number or
  * a string at runtime, the compiler can't tell which, but we do know that it's not a boolean or NaN as
- * those bits are not set. 
- * 
+ * those bits are not set.
+ *
  * @readonly
  * @enum {number}
  */
@@ -47,20 +47,25 @@ const InputType = {
     /** Any number, excluding NaN. Equal to NUMBER_REAL | NUMBER_INF */
     NUMBER: 0x03F,
     /** Any number, including NaN. Equal to NUMBER | NUMBER_NAN */
-    NUMBER_OR_NAN: 0x07F,
+    NUMBER_OR_NAN: 0x03F,
+    /** Anything that can be interperated as a number. Equal to NUMBER | STRING_NUM */
+    NUMBER_INTERPRETABLE: 0x15F,
 
-    
     /** Any string which as a non-NaN neumeric interpretation, excluding ''.  */
     STRING_NUM: 0x080,
     /** Any string which has no non-NaN neumeric interpretation, including ''. */
     STRING_NAN: 0x100,
 
+    STRING_BOOLEAN: 0x200,
+
     /** Any string. Equal to STRING_NUM | STRING_NAN */
-    STRING: 0x180,
+    STRING: 0x2C0,
 
 
     /** Any boolean. */
     BOOLEAN: 0x200,
+
+    BOOLEAN_INTERPRETABLE: 0x300,
 
 
     /** Any type. Equal to NUMBER_OR_NAN | STRING | BOOLEAN */
