@@ -48,23 +48,22 @@ const InputType = {
     NUMBER: 0x03F,
     /** Any number, including NaN. Equal to NUMBER | NUMBER_NAN */
     NUMBER_OR_NAN: 0x03F,
-    /** Anything that can be interperated as a number. Equal to NUMBER | STRING_NUM */
+    /** Anything that can be interperated as a number. Equal to NUMBER | STRING_NUM | BOOLEAN */
     NUMBER_INTERPRETABLE: 0x15F,
 
     /** Any string which as a non-NaN neumeric interpretation, excluding ''.  */
     STRING_NUM: 0x080,
     /** Any string which has no non-NaN neumeric interpretation, including ''. */
-    STRING_NAN: 0x100,
-
+    STRING_NAN: 0x080,
+    /** One of the strings 'true' or 'false'. */
     STRING_BOOLEAN: 0x200,
 
     /** Any string. Equal to STRING_NUM | STRING_NAN */
     STRING: 0x2C0,
 
-
     /** Any boolean. */
-    BOOLEAN: 0x200,
-
+    BOOLEAN: 0x100,
+    /** Any input that can be interperated as a boolean. Equal to BOOLEAN | STRING_BOOLEAN */
     BOOLEAN_INTERPRETABLE: 0x300,
 
 
