@@ -35,12 +35,16 @@ const InputType = {
 
     /** Any Zero. Equal to NUMBER_ZERO | NUMBER_NEG_ZERO */
     NUMBER_ANY_ZERO: 0x00C,
+    /** Any Infinity. Equal to NUMBER_POS_INF | NUMBER_NEG_INF */
+    NUMBER_INF: 0x021,
+    /** Any real number. Equal to NUMBER_POS_REAL | NUMBER_ANY_ZERO | NUMBER_NEG_REAL */
+    NUMBER_REAL: 0x01E,
     /** Any positive number, excluding 0. Equal to NUMBER_POS_REAL | NUMBER_POS_INF */
     NUMBER_POS: 0x003,
     /** Any negitive number, excluding -0. Equal to NUMBER_NEG_REAL | NUMBER_NEG_INF */
     NUMBER_NEG: 0x030,
 
-    /** Any number, excluding NaN. Equal to NUMBER_POS | NUMBER_ANY_ZERO | NUMBER_NEG */
+    /** Any number, excluding NaN. Equal to NUMBER_REAL | NUMBER_INF */
     NUMBER: 0x03F,
     /** Any number, including NaN. Equal to NUMBER | NUMBER_NAN */
     NUMBER_OR_NAN: 0x07F,

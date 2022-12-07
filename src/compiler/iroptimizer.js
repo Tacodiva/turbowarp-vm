@@ -84,10 +84,15 @@ class IROptimizer {
         switch (inputBlock.opcode) {
             case InputOpcode.VAR_GET:
                 return state.getVariableType(inputs.variable);
+
             case InputOpcode.CAST_NUMBER: {
                 const innerType = this.analyzeInputBlock(inputs.target, state);
                 if (innerType & InputType.NUMBER) return innerType;
                 return InputType.NUMBER;
+            } case InputOpcode.CAST_NUMBER_OR_NAN: {
+                const innerType = this.analyzeInputBlock(inputs.target, state);
+                if (innerType & InputType.NUMBER_OR_NAN) return innerType;
+                return InputType.NUMBER_OR_NAN;
             }
 
             case InputOpcode.OP_ADD: {
@@ -99,7 +104,7 @@ class IROptimizer {
                 function canBeNaN() {
                     // Infinity + (-Infinity) = NaN
                     if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_NEG_INF)) return true;
-                    // (-Infinity) + (Infinity) = NaN
+                    // (-Infinity) + Infinity = NaN
                     if ((leftType & InputType.NUMBER_NEG_INF) && (rightType & InputType.NUMBER_POS_INF)) return true;
                 }
                 if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
@@ -134,6 +139,191 @@ class IROptimizer {
                 function canBeNegZero() {
                     // -0 + -0 = -0
                     if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
+                }
+                if (canBeNegZero()) resultType |= InputType.NUMBER_NEG_ZERO;
+
+                return resultType;
+            }
+
+            case InputOpcode.OP_SUBTRACT: {
+                const leftType = this.analyzeInputBlock(inputs.left, state);
+                const rightType = this.analyzeInputBlock(inputs.right, state);
+
+                let resultType = 0;
+
+                function canBeNaN() {
+                    // Infinity - Infinity = NaN
+                    if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_POS_INF)) return true;
+                    // (-Infinity) - (-Infinity) = NaN
+                    if ((leftType & InputType.NUMBER_NEG_INF) && (rightType & InputType.NUMBER_NEG_INF)) return true;
+                }
+                if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
+
+                function canBePos() {
+                    if (leftType & InputType.NUMBER_POS) return true; // POS - ANY ~= POS
+                    if (rightType & InputType.NUMBER_NEG) return true; // ANY - NEG ~= POS
+                }
+                if (canBePos()) resultType |= InputType.NUMBER_POS;
+
+                function canBeNeg() {
+                    if (leftType & InputType.NUMBER_NEG) return true; // NEG - ANY ~= NEG
+                    if (rightType & InputType.NUMBER_POS) return true; // ANY - POS ~= NEG
+                }
+                if (canBeNeg()) resultType |= InputType.NUMBER_NEG;
+
+                function canBeZero() {
+                    // POS_REAL - POS_REAL ~= 0
+                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_POS_REAL)) return true;
+                    // NEG_REAL - NEG_REAL ~= 0
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                    // 0 - 0 = 0
+                    if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_ZERO)) return true;
+                    // 0 - (-0) = 0
+                    if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
+                    // (-0) - (-0) = 0
+                    if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
+                }
+                if (canBeZero()) resultType |= InputType.NUMBER_ZERO;
+
+                function canBeNegZero() {
+                    // (-0) - 0 = -0
+                    if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_ZERO)) return true;
+                }
+                if (canBeNegZero()) resultType |= InputType.NUMBER_NEG_ZERO;
+
+                return resultType;
+            }
+
+            case InputOpcode.OP_MULTIPLY: {
+                const leftType = this.analyzeInputBlock(inputs.left, state);
+                const rightType = this.analyzeInputBlock(inputs.right, state);
+
+                let resultType = 0;
+
+                function canBeNaN() {
+                    // Infinity * 0 = NaN
+                    if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_ANY_ZERO)) return true;
+                    // 0 * Infinity = NaN
+                    if ((leftType & InputType.NUMBER_ANY_ZERO) && (rightType & InputType.NUMBER_POS_INF)) return true;
+                }
+                if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
+
+                function canBePos() {
+                    // POS * POS = POS
+                    if ((leftType & InputType.NUMBER_POS) && (rightType & InputType.NUMBER_POS)) return true;
+                    // NEG * NEG = POS
+                    if ((leftType & InputType.NUMBER_NEG) && (rightType & InputType.NUMBER_NEG)) return true;
+                }
+                if (canBePos()) resultType |= InputType.NUMBER_POS;
+
+                function canBeNeg() {
+                    // POS * NEG = NEG
+                    if ((leftType & InputType.NUMBER_POS) && (rightType & InputType.NUMBER_NEG)) return true;
+                    // NEG * POS = NEG
+                    if ((leftType & InputType.NUMBER_NEG) && (rightType & InputType.NUMBER_POS)) return true;
+                }
+                if (canBeNeg()) resultType |= InputType.NUMBER_NEG;
+
+                function canBeZero() {
+                    // 0 * POS_REAL = 0
+                    if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_POS_REAL)) return true;
+                    // -0 * NEG_REAL = 0
+                    if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                    // POS_REAL * 0 = 0
+                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_ZERO)) return true;
+                    // NEG_REAL * -0 = 0
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
+                    // Rounding errors like 1e-323 * 0.1 = 0
+                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_POS_REAL)) return true;
+                    // Rounding errors like -1e-323 / -0.1 = 0
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                }
+                if (canBeZero()) resultType |= InputType.NUMBER_ZERO;
+
+                function canBeNegZero() {
+                    // -0 * POS_REAL = -0
+                    if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_POS_REAL)) return true;
+                    // 0 * NEG_REAL = -0
+                    if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                    // POS_REAL * -0 = -0
+                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
+                    // NEG_REAL * 0 = -0
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_ZERO)) return true;
+                    // Rounding errors like -1e-323 / 10 = -0
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_POS_REAL)) return true;
+                    // Rounding errors like 1e-323 / -10 = -0
+                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                }
+                if (canBeNegZero()) resultType |= InputType.NUMBER_NEG_ZERO;
+                
+                return resultType;
+            }
+
+            case InputOpcode.OP_DIVIDE: {
+                const leftType = this.analyzeInputBlock(inputs.left, state);
+                const rightType = this.analyzeInputBlock(inputs.right, state);
+
+                let resultType = 0;
+
+                function canBeNaN() {
+                    // REAL / 0 = NaN
+                    if ((leftType & InputType.NUMBER_REAL) && (rightType & InputType.NUMBER_ZERO)) return true;
+                    // Infinity / Infinity = NaN
+                    if ((leftType & InputType.NUMBER_INF) && (rightType & InputType.NUMBER_INF)) return true;
+                }
+                if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
+
+                function canBePos() {
+                    // POS / POS = POS
+                    if ((leftType & InputType.NUMBER_POS) && (rightType & InputType.NUMBER_POS)) return true;
+                    // NEG / NEG = POS
+                    if ((leftType & InputType.NUMBER_NEG) && (rightType & InputType.NUMBER_NEG)) return true;
+                }
+                if (canBePos()) resultType |= InputType.NUMBER_POS;
+
+                // -Infinity / 0 = -Infinity
+                if ((leftType & InputType.NUMBER_NEG_INF) && (rightType & InputType.NUMBER_ZERO))
+                    resultType |= InputType.NUMBER_NEG_INF;
+                // Infinity / -0 = -Infinity
+                if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_NEG_ZERO))
+                    resultType |= InputType.NUMBER_NEG_INF;
+
+                // Infinity / 0 = Infinity
+                if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_ZERO))
+                    resultType |= InputType.NUMBER_POS_INF;
+                // -Infinity / -0 = Infinity
+                if ((leftType & InputType.NUMBER_NEG_INF) && (rightType & InputType.NUMBER_NEG_ZERO))
+                    resultType |= InputType.NUMBER_POS_INF;
+
+                function canBeNeg() {
+                    // POS / NEG = NEG
+                    if ((leftType & InputType.NUMBER_POS) && (rightType & InputType.NUMBER_NEG)) return true;
+                    // NEG / POS = NEG
+                    if ((leftType & InputType.NUMBER_NEG) && (rightType & InputType.NUMBER_POS)) return true;
+                }
+                if (canBeNeg()) resultType |= InputType.NUMBER_NEG;
+
+                function canBeZero() {
+                    // 0 / POS = 0
+                    if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_POS)) return true;
+                    // -0 / NEG = 0
+                    if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_NEG)) return true;
+                    // Rounding errors like 1e-323 / 10 = 0
+                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_POS_REAL)) return true;
+                    // Rounding errors like -1e-323 / -10 = 0
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                }
+                if (canBeZero()) resultType |= InputType.NUMBER_ZERO;
+
+                function canBeNegZero() {
+                    // -0 / POS = -0
+                    if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_POS)) return true;
+                    // 0 / NEG = -0
+                    if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_NEG)) return true;
+                    // Rounding errors like -1e-323 / 10 = -0
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_POS_REAL)) return true;
+                    // Rounding errors like 1e-323 / -10 = -0
+                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
                 }
                 if (canBeNegZero()) resultType |= InputType.NUMBER_NEG_ZERO;
 
