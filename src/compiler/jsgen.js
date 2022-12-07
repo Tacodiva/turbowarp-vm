@@ -472,7 +472,7 @@ class JSGenerator {
             this.descendStack(node.whenTrue, new Frame(false));
             // only add the else branch if it won't be empty
             // this makes scripts have a bit less useless noise in them
-            if (node.whenFalse.length) {
+            if (node.whenFalse.blocks.length) {
                 this.source += `} else {\n`;
                 this.descendStack(node.whenFalse, new Frame(false));
             }
@@ -828,7 +828,7 @@ class JSGenerator {
 
         for (let i = 0; i < stack.blocks.length; i++) {
             frame.isLastBlock = i === stack.blocks.length - 1;
-            this.descendStackedBlock(stack[i]);
+            this.descendStackedBlock(stack.blocks[i]);
         }
 
         // Leaving a stack -- any assumptions made in the current stack do not apply outside of it

@@ -581,7 +581,7 @@ class ScriptTreeGenerator {
             return new IntermediateStackBlock(StackOpcode.CONTROL_IF_ELSE, {
                 condition: this.createConstantInput(true),
                 whenTrue: this.descendSubstack(block, 'SUBSTACK'),
-                whenFalse: []
+                whenFalse: new IntermediateStack()
             });
         case 'control_create_clone_of':
             return new IntermediateStackBlock(StackOpcode.CONTROL_CLONE_CREATE, {
@@ -604,7 +604,7 @@ class ScriptTreeGenerator {
             return new IntermediateStackBlock(StackOpcode.CONTROL_IF_ELSE, {
                 condition: this.descendInputOfBlock(block, 'CONDITION').toType(InputType.BOOLEAN),
                 whenTrue: this.descendSubstack(block, 'SUBSTACK'),
-                whenFalse: []
+                whenFalse: new IntermediateStack()
             });
         case 'control_if_else':
             return new IntermediateStackBlock(StackOpcode.CONTROL_IF_ELSE, {
@@ -1015,7 +1015,7 @@ class ScriptTreeGenerator {
     descendSubstack (parentBlock, substackName) {
         const input = parentBlock.inputs[substackName];
         if (!input) {
-            return [];
+            return new IntermediateStack();
         }
         const stackId = input.block;
         return this.walkStack(stackId);
