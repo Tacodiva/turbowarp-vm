@@ -8,7 +8,7 @@ const { InputOpcode, InputType } = require('./enums.js')
 /**
  * Describes a 'stackable' block (eg. show)
  */
-class IntermediateStack {
+class IntermediateStackBlock {
     /**
      * @param {import("./enums").StackOpcode} opcode 
      * @param {Object} inputs 
@@ -170,6 +170,17 @@ class IntermediateInput {
 }
 
 /**
+ * A 'stack' of blocks, like the contents of a script or the inside
+ * of a C block.
+ */
+class IntermediateStack {
+    constructor() {   
+        /** @type {IntermediateStackBlock[]} */
+        this.blocks = [];
+    }
+}
+
+/**
  * An IntermediateScript describes a single script.
  * Scripts do not necessarily have hats.
  */
@@ -183,7 +194,7 @@ class IntermediateScript {
 
         /**
          * List of nodes that make up this script.
-         * @type {IntermediateStack[]}
+         * @type {IntermediateStack}
          */
         this.stack = null;
 
@@ -265,8 +276,9 @@ class IntermediateRepresentation {
 }
 
 module.exports = {
-    IntermediateStack,
+    IntermediateStackBlock,
     IntermediateInput,
+    IntermediateStack,
     IntermediateScript,
     IntermediateRepresentation
 };

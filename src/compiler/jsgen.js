@@ -3,10 +3,7 @@ const VariablePool = require('./variable-pool');
 const jsexecute = require('./jsexecute');
 const environment = require('./environment');
 const {StackOpcode, InputOpcode, InputType} = require('./enums.js')
-
-// Imported for JSDoc types, not to actually use
-// eslint-disable-next-line no-unused-vars
-const {IntermediateStack, IntermediateInput, IntermediateScript, IntermediateRepresentation} = require('./intermediate');
+const {IntermediateStackBlock, IntermediateInput, IntermediateStack, IntermediateScript, IntermediateRepresentation} = require('./intermediate');
 
 /**
  * @fileoverview Convert intermediate representations to JavaScript functions.
@@ -426,7 +423,7 @@ class JSGenerator {
     }
 
     /**
-     * @param {IntermediateStack} block Stacked block to compile.
+     * @param {IntermediateStackBlock} block Stacked block to compile.
      */
     descendStackedBlock (block) {
         const node = block.inputs;
@@ -820,14 +817,18 @@ class JSGenerator {
         return result;
     }
 
-    descendStack (nodes, frame) {
+    /**
+     * @param {IntermediateStack} stack 
+     * @param {Frame} frame 
+     */
+    descendStack (stack, frame) {
         // Entering a stack -- all bets are off.
         // TODO: allow if/else to inherit values
         this.pushFrame(frame);
 
-        for (let i = 0; i < nodes.length; i++) {
-            frame.isLastBlock = i === nodes.length - 1;
-            this.descendStackedBlock(nodes[i]);
+        for (let i = 0; i < stack.blocks.length; i++) {
+            frame.isLastBlock = i === stack.blocks.length - 1;
+            this.descendStackedBlock(stack[i]);
         }
 
         // Leaving a stack -- any assumptions made in the current stack do not apply outside of it
@@ -934,7 +935,7 @@ class JSGenerator {
 
     /**
      * Generate a call into the compatibility layer.
-     * @param {IntermediateStack} block The block to generate from.
+     * @param {IntermediateStackBlock} block The block to generate from.
      * @param {boolean} setFlags Whether flags should be set describing how this function was processed.
      * @param {string|null} [frameName] Name of the stack frame variable, if any
      * @returns {string} The JS of the call.
