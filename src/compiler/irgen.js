@@ -247,7 +247,7 @@ class ScriptTreeGenerator {
                 index: this.descendInputOfBlock(block, 'INDEX')
             });
         case 'data_lengthoflist':
-            return new IntermediateInput(InputOpcode.LIST_LENGTH, InputType.NUMBER, {
+            return new IntermediateInput(InputOpcode.LIST_LENGTH, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE)
             });
         case 'data_listcontainsitem':
@@ -256,7 +256,7 @@ class ScriptTreeGenerator {
                 item: this.descendInputOfBlock(block, 'ITEM')
             });
         case 'data_itemnumoflist':
-            return new IntermediateInput(InputOpcode.LIST_INDEX_OF, InputType.NUMBER, {
+            return new IntermediateInput(InputOpcode.LIST_INDEX_OF, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO, {
                 list: this.descendVariable(block, 'LIST', LIST_TYPE),
                 item: this.descendInputOfBlock(block, 'ITEM')
             });
@@ -275,23 +275,23 @@ class ScriptTreeGenerator {
 
         case 'looks_backdropnumbername':
             if (block.fields.NUMBER_NAME.value === 'number') {
-                return new IntermediateInput(InputOpcode.LOOKS_BACKDROP_NUMBER, InputType.NUMBER);
+                return new IntermediateInput(InputOpcode.LOOKS_BACKDROP_NUMBER, InputType.NUMBER_POS_REAL);
             }
             return new IntermediateInput(InputOpcode.LOOKS_BACKDROP_NAME, InputType.STRING);
         case 'looks_costumenumbername':
             if (block.fields.NUMBER_NAME.value === 'number') {
-                return new IntermediateInput(InputOpcode.LOOKS_COSTUME_NUMBER, InputType.NUMBER);
+                return new IntermediateInput(InputOpcode.LOOKS_COSTUME_NUMBER, InputType.NUMBER_POS_REAL);
             }
             return new IntermediateInput(InputOpcode.LOOKS_COSTUME_NAME, InputType.STRING);
         case 'looks_size':
-            return new IntermediateInput(InputOpcode.LOOKS_SIZE_GET, InputType.NUMBER);
+            return new IntermediateInput(InputOpcode.LOOKS_SIZE_GET, InputType.NUMBER_POS_REAL);
 
         case 'motion_direction':
-            return new IntermediateInput(InputOpcode.MOTION_DIRECTION_GET, InputType.NUMBER);
+            return new IntermediateInput(InputOpcode.MOTION_DIRECTION_GET, InputType.NUMBER_REAL);
         case 'motion_xposition':
-            return new IntermediateInput(InputOpcode.MOTION_X_GET, InputType.NUMBER);
+            return new IntermediateInput(InputOpcode.MOTION_X_GET, InputType.NUMBER_REAL);
         case 'motion_yposition':
-            return new IntermediateInput(InputOpcode.MOTION_Y_GET, InputType.NUMBER);
+            return new IntermediateInput(InputOpcode.MOTION_Y_GET, InputType.NUMBER_REAL);
 
         case 'operator_add':
             return new IntermediateInput(InputOpcode.OP_ADD, InputType.NUMBER_OR_NAN, {
@@ -329,7 +329,7 @@ class ScriptTreeGenerator {
                 right: this.descendInputOfBlock(block, 'STRING2').toType(InputType.STRING)
             });
         case 'operator_length':
-            return new IntermediateInput(InputOpcode.OP_LENGTH, InputType.NUMBER, {
+            return new IntermediateInput(InputOpcode.OP_LENGTH, InputType.NUMBER_REAL, {
                 string: this.descendInputOfBlock(block, 'STRING').toType(InputType.STRING)
             });
         case 'operator_letter_of':
@@ -346,7 +346,7 @@ class ScriptTreeGenerator {
             const value = this.descendInputOfBlock(block, 'NUM').toType(InputType.NUMBER);
             const operator = block.fields.OPERATOR.value.toLowerCase();
             switch (operator) {
-                case 'abs': return new IntermediateInput(InputOpcode.OP_ABS, InputType.NUMBER, {value});
+                case 'abs': return new IntermediateInput(InputOpcode.OP_ABS, InputType.NUMBER_POS | InputType.NUMBER_ZERO, {value});
                 case 'floor': return new IntermediateInput(InputOpcode.OP_FLOOR, InputType.NUMBER, {value});
                 case 'ceiling': return new IntermediateInput(InputOpcode.OP_CEILING, InputType.NUMBER, {value});
                 case 'sqrt': return new IntermediateInput(InputOpcode.OP_SQRT, InputType.NUMBER_OR_NAN, {value});
@@ -464,19 +464,19 @@ class ScriptTreeGenerator {
             });
         case 'sensing_current':
             switch (block.fields.CURRENTMENU.value.toLowerCase()) {
-                case 'year': return new IntermediateInput(InputOpcode.SENSING_TIME_YEAR, InputType.NUMBER);
-                case 'month': return new IntermediateInput(InputOpcode.SENSING_TIME_MONTH, InputType.NUMBER);
-                case 'date': return new IntermediateInput(InputOpcode.SENSING_TIME_DATE, InputType.NUMBER);
-                case 'dayofweek': return new IntermediateInput(InputOpcode.SENSING_TIME_WEEKDAY, InputType.NUMBER);
-                case 'hour': return new IntermediateInput(InputOpcode.SENSING_TIME_HOUR, InputType.NUMBER);
-                case 'minute': return new IntermediateInput(InputOpcode.SENSING_TIME_MINUTE, InputType.NUMBER);
-                case 'second': return new IntermediateInput(InputOpcode.SENSING_TIME_SECOND, InputType.NUMBER);
+                case 'year': return new IntermediateInput(InputOpcode.SENSING_TIME_YEAR, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO);
+                case 'month': return new IntermediateInput(InputOpcode.SENSING_TIME_MONTH, InputType.NUMBER_POS_REAL);
+                case 'date': return new IntermediateInput(InputOpcode.SENSING_TIME_DATE, InputType.NUMBER_POS_REAL);
+                case 'dayofweek': return new IntermediateInput(InputOpcode.SENSING_TIME_WEEKDAY, InputType.NUMBER_POS_REAL);
+                case 'hour': return new IntermediateInput(InputOpcode.SENSING_TIME_HOUR, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO);
+                case 'minute': return new IntermediateInput(InputOpcode.SENSING_TIME_MINUTE, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO);
+                case 'second': return new IntermediateInput(InputOpcode.SENSING_TIME_SECOND, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO);
                 default: return this.createConstantInput(0);
             }
         case 'sensing_dayssince2000':
             return new IntermediateInput(InputOpcode.SENSING_TIME_DAYS_SINCE_2000, InputType.NUMBER);
         case 'sensing_distanceto':
-            return new IntermediateInput(InputOpcode.SENSING_DISTANCE, InputType.NUMBER, {
+            return new IntermediateInput(InputOpcode.SENSING_DISTANCE, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO, {
                 target: this.descendInputOfBlock(block, 'DISTANCETOMENU').toType(InputType.STRING)
             });
         case 'sensing_keypressed':
@@ -497,38 +497,38 @@ class ScriptTreeGenerator {
                 return new IntermediateInput(InputOpcode.SENSING_OF, InputType.ANY, { object, property });
 
             if (property === 'volume') {
-                return new IntermediateInput(InputOpcode.SENSING_OF_VOLUME, InputType.NUMBER, { object, property });
+                return new IntermediateInput(InputOpcode.SENSING_OF_VOLUME, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO, { object, property });
             }
 
             if (object.isConstant("_stage_")) {
                 switch (property) {
                     case 'background #': // fallthrough for scratch 1.0 compatibility
                     case 'backdrop #':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NUMBER, InputType.NUMBER);
+                        return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NUMBER, InputType.NUMBER_POS_REAL);
                     case 'backdrop name':
                         return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NAME, InputType.STRING);
                 }
             } else {
                 switch (property) {
                     case 'x position':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_POS_X, InputType.NUMBER, { object });
+                        return new IntermediateInput(InputOpcode.SENSING_OF_POS_X, InputType.NUMBER_REAL, { object });
                     case 'y position':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_POS_Y, InputType.NUMBER, { object });
+                        return new IntermediateInput(InputOpcode.SENSING_OF_POS_Y, InputType.NUMBER_REAL, { object });
                     case 'direction':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_DIRECTION, InputType.NUMBER, { object });
+                        return new IntermediateInput(InputOpcode.SENSING_OF_DIRECTION, InputType.NUMBER_REAL, { object });
                     case 'costume #':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NUMBER, InputType.NUMBER, { object });
+                        return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NUMBER, InputType.NUMBER_POS_REAL, { object });
                     case 'costume name':
                         return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NAME, InputType.STRING, { object });
                     case 'size':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_SIZE, InputType.NUMBER, { object });
+                        return new IntermediateInput(InputOpcode.SENSING_OF_SIZE, InputType.NUMBER_POS_REAL, { object });
                 }
             }
 
             return new IntermediateInput(InputOpcode.SENSING_OF_VAR, InputType.ANY, { object, property });
         case 'sensing_timer':
             this.usesTimer = true;
-            return new IntermediateInput(InputOpcode.SENSING_TIMER_GET, InputType.NUMBER);
+            return new IntermediateInput(InputOpcode.SENSING_TIMER_GET, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO);
         case 'sensing_touchingcolor':
             return new IntermediateInput(InputOpcode.SENSING_TOUCHING_COLOR, InputType.BOOLEAN, {
                 color: this.descendInputOfBlock(block, 'COLOR')
