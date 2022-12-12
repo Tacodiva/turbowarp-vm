@@ -39,6 +39,10 @@ class TypeState {
             this.variables[varId] = newType;
             modified |= currentType !== newType;
         }
+        for (const varId in this.variables) {
+            if (!other.variables[varId])
+                this.variables[varId] = InputType.ANY;
+        }
         return modified;
     }
 
@@ -255,7 +259,7 @@ class IROptimizer {
                     if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
                 }
                 if (canBeNegZero()) resultType |= InputType.NUMBER_NEG_ZERO;
-                
+
                 return resultType;
             }
 
@@ -346,8 +350,16 @@ class IROptimizer {
             case StackOpcode.VAR_SET:
                 return state.setVariableType(inputs.variable, this.analyzeInputBlock(inputs.value, state));
             case StackOpcode.CONTROL_WHILE:
+            case StackOpcode.CONTROL_FOR:
+            case StackOpcode.CONTROL_REPEAT:
                 return this.analyzeLoopedStack(inputs.do, state, stackBlock);
-            case StackOpcode.PROCEDURE_CALL:
+            case StackOpcode.CONTROL_IF_ELSE: {
+                const trueState = state.clone();
+                let modified = this.analyzeStack(inputs.whenTrue, trueState);
+                modified |= this.analyzeStack(inputs.whenFalse, state);
+                modified |= state.or(trueState);
+                return modified;
+            } case StackOpcode.PROCEDURE_CALL:
                 // TDTODO If we've analyzed the procedure we can grab it's type info
                 // instead of resetting everything.
                 return state.clear();
@@ -363,8 +375,8 @@ class IROptimizer {
         if (!stack) return false;
         let modified = false;
         for (const stackBlock of stack.blocks) {
-            const stateChanged = this.analyzeStackBlock(stackBlock, state);
-            if (stackBlock.yields) state.clear();
+            let stateChanged = this.analyzeStackBlock(stackBlock, state);
+            if (stackBlock.yields) stateChanged |= state.clear();
 
             if (stateChanged) {
                 if (stackBlock.typeState) stackBlock.typeState.or(state);
@@ -383,9 +395,9 @@ class IROptimizer {
      */
     analyzeLoopedStack(stack, state, block) {
         if (block.yields) {
-            state.clear();
+            let modified = state.clear();
             block.entryState = state.clone();
-            return this.analyzeStack(stack, state);
+            return this.analyzeStack(stack, state) | modified;
         } else {
             let modified = false;
             let keepLooping;
