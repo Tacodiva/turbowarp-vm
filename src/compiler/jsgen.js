@@ -163,6 +163,8 @@ class JSGenerator {
             return `(+${this.descendInput(node.target)} || 0)`;
         case InputOpcode.CAST_NUMBER_OR_NAN:
             return `(+${this.descendInput(node.target)})`;
+        case InputOpcode.CAST_NUMBER_INDEX:
+            return `(${this.descendInput(node.target.toType(InputType.NUMBER_OR_NAN))} | 0)`;
         case InputOpcode.CAST_STRING:
             return `("" + ${this.descendInput(node.target)})`;
 
@@ -192,7 +194,7 @@ class JSGenerator {
         case InputOpcode.LIST_GET: {
             if (environment.supportsNullishCoalescing) {
                 if (node.index.isAlwaysType(InputType.NUMBER_INTERPRETABLE | InputType.NUMBER_NAN)) {
-                    return `(${this.referenceVariable(node.list)}.value[(${this.descendInput(node.index.toType(InputType.NUMBER_OR_NAN))} | 0) - 1] ?? "")`;
+                    return `(${this.referenceVariable(node.list)}.value[${this.descendInput(node.index.toType(InputType.NUMBER_INDEX))} - 1] ?? "")`;
                 }
                 if (node.index.isConstant('last')) {
                     return `(${this.referenceVariable(node.list)}.value[${this.referenceVariable(node.list)}.value.length - 1] ?? "")`;
@@ -314,7 +316,7 @@ class JSGenerator {
             return `compareLessThan(${this.descendInput(left)}, ${this.descendInput(right)})`;
         }
         case InputOpcode.OP_LETTER_OF:
-            return `((${this.descendInput(node.string)})[(${this.descendInput(node.letter)} | 0) - 1] || "")`;
+            return `((${this.descendInput(node.string)})[${this.descendInput(node.letter)} - 1] || "")`;
         case InputOpcode.OP_LOG_E:
             return `Math.log(${this.descendInput(node.value)})`;
         case InputOpcode.OP_LOG_10:

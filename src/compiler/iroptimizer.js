@@ -113,17 +113,31 @@ class IROptimizer {
                 }
                 if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
 
+                function canBeFractional() {
+                    // For the plus operation to return a non-whole number one of it's
+                    //  inputs has to be a non-whole number
+                    if (leftType & InputType.NUMBER_FRACT) return true;
+                    if (rightType & InputType.NUMBER_FRACT) return true;
+                }
+                const canBeFract = canBeFractional();
+
                 function canBePos() {
                     if (leftType & InputType.NUMBER_POS) return true; // POS + ANY ~= POS
                     if (rightType & InputType.NUMBER_POS) return true; // ANY + POS ~= POS
                 }
-                if (canBePos()) resultType |= InputType.NUMBER_POS;
+                if (canBePos()) {
+                    resultType |= InputType.NUMBER_POS_INT | InputType.NUMBER_POS_INF;
+                    if (canBeFract) resultType |= InputType.NUMBER_POS_FRACT;
+                }
 
                 function canBeNeg() {
                     if (leftType & InputType.NUMBER_NEG) return true; // NEG + ANY ~= NEG
                     if (rightType & InputType.NUMBER_NEG) return true; // ANY + NEG ~= NEG
                 }
-                if (canBeNeg()) resultType |= InputType.NUMBER_NEG;
+                if (canBeNeg()) {
+                    resultType |= InputType.NUMBER_NEG_INT | InputType.NUMBER_NEG_INF;
+                    if (canBeFract) resultType |= InputType.NUMBER_NEG_FRACT;
+                }
 
                 function canBeZero() {
                     // POS_REAL + NEG_REAL ~= 0
@@ -163,17 +177,31 @@ class IROptimizer {
                 }
                 if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
 
+                function canBeFractional() {
+                    // For the subtract operation to return a non-whole number one of it's
+                    //  inputs has to be a non-whole number
+                    if (leftType & InputType.NUMBER_FRACT) return true;
+                    if (rightType & InputType.NUMBER_FRACT) return true;
+                }
+                const canBeFract = canBeFractional();
+
                 function canBePos() {
                     if (leftType & InputType.NUMBER_POS) return true; // POS - ANY ~= POS
                     if (rightType & InputType.NUMBER_NEG) return true; // ANY - NEG ~= POS
                 }
-                if (canBePos()) resultType |= InputType.NUMBER_POS;
+                if (canBePos()) {
+                    resultType |= InputType.NUMBER_POS_INT | InputType.NUMBER_POS_INF;
+                    if (canBeFract) resultType |= InputType.NUMBER_POS_FRACT;
+                }
 
                 function canBeNeg() {
                     if (leftType & InputType.NUMBER_NEG) return true; // NEG - ANY ~= NEG
                     if (rightType & InputType.NUMBER_POS) return true; // ANY - POS ~= NEG
                 }
-                if (canBeNeg()) resultType |= InputType.NUMBER_NEG;
+                if (canBeNeg()) {
+                    resultType |= InputType.NUMBER_NEG_INT | InputType.NUMBER_NEG_INF;
+                    if (canBeFract) resultType |= InputType.NUMBER_NEG_FRACT;
+                }
 
                 function canBeZero() {
                     // POS_REAL - POS_REAL ~= 0
@@ -212,13 +240,24 @@ class IROptimizer {
                 }
                 if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
 
+                function canBeFractional() {
+                    // For the subtract operation to return a non-whole number one of it's
+                    //  inputs has to be a non-whole number
+                    if (leftType & InputType.NUMBER_FRACT) return true;
+                    if (rightType & InputType.NUMBER_FRACT) return true;
+                }
+                const canBeFract = canBeFractional();
+
                 function canBePos() {
                     // POS * POS = POS
                     if ((leftType & InputType.NUMBER_POS) && (rightType & InputType.NUMBER_POS)) return true;
                     // NEG * NEG = POS
                     if ((leftType & InputType.NUMBER_NEG) && (rightType & InputType.NUMBER_NEG)) return true;
                 }
-                if (canBePos()) resultType |= InputType.NUMBER_POS;
+                if (canBePos()) {
+                    resultType |= InputType.NUMBER_POS_INT | InputType.NUMBER_POS_INF;
+                    if (canBeFract) resultType |= InputType.NUMBER_POS_FRACT;
+                }
 
                 function canBeNeg() {
                     // POS * NEG = NEG
@@ -226,7 +265,10 @@ class IROptimizer {
                     // NEG * POS = NEG
                     if ((leftType & InputType.NUMBER_NEG) && (rightType & InputType.NUMBER_POS)) return true;
                 }
-                if (canBeNeg()) resultType |= InputType.NUMBER_NEG;
+                if (canBeNeg()) {
+                    resultType |= InputType.NUMBER_NEG_INT | InputType.NUMBER_NEG_INF;
+                    if (canBeFract) resultType |= InputType.NUMBER_NEG_FRACT;
+                }
 
                 function canBeZero() {
                     // 0 * POS_REAL = 0

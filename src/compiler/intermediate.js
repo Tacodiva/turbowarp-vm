@@ -42,10 +42,11 @@ class IntermediateStackBlock {
 class IntermediateInput {
 
     static getNumberInputType(number) {
+        if (typeof number !== "number") throw new Error("Expected a number.");
         if (number === Infinity) return InputType.NUMBER_POS_INF;
         if (number === -Infinity) return InputType.NUMBER_NEG_INF;
-        if (number < 0) return InputType.NUMBER_NEG_REAL;
-        if (number > 0) return InputType.NUMBER_POS_REAL;
+        if (number < 0) return Number.isInteger(number) ? InputType.NUMBER_NEG_INT : InputType.NUMBER_NEG_FRACT;
+        if (number > 0) return Number.isInteger(number) ? InputType.NUMBER_POS_INT : InputType.NUMBER_POS_FRACT;
         if (Number.isNaN(number)) return InputType.NUMBER_NAN;
         if (Object.is(number, -0)) return InputType.NUMBER_NEG_ZERO;
         return InputType.NUMBER_ZERO;
@@ -125,6 +126,9 @@ class IntermediateInput {
             case InputType.NUMBER:
                 castOpcode = InputOpcode.CAST_NUMBER;
                 break;
+            case InputType.NUMBER_INDEX:
+                castOpcode = InputOpcode.CAST_NUMBER_INDEX;
+                break;
             case InputType.NUMBER_OR_NAN:
                 castOpcode = InputOpcode.CAST_NUMBER_OR_NAN;
                 break;
@@ -135,7 +139,7 @@ class IntermediateInput {
                 log.warn(`Cannot cast to type: ${targetType}`, this);
                 throw new Error(`Cannot cast to type: ${targetType}`);
         }
-        
+
         if (this.isAlwaysType(targetType)) return this;
 
         if (this.opcode === InputOpcode.CONSTANT) {
@@ -146,6 +150,7 @@ class IntermediateInput {
                     this.type = InputType.BOOLEAN;
                     break;
                 case InputOpcode.CAST_NUMBER:
+                case InputOpcode.CAST_NUMBER_INDEX:
                 case InputOpcode.CAST_NUMBER_OR_NAN:
                     if (this.isAlwaysType(InputType.BOOLEAN_INTERPRETABLE)) {
                         this.type = InputType.NUMBER;
@@ -158,6 +163,10 @@ class IntermediateInput {
                         // numberValue is one of 0, -0, or NaN
                         if (Object.is(numberValue, -0)) this.inputs.value = -0;
                         else this.inputs.value = 0; // Convert NaN to 0
+                    }
+                    if (castOpcode === InputOpcode.CAST_NUMBER_INDEX) {
+                        // Round numberValue to an integer
+                        numberValue |= 0;
                     }
                     this.type = IntermediateInput.getNumberInputType(this.inputs.value);
                     break;
@@ -178,7 +187,7 @@ class IntermediateInput {
  * of a C block.
  */
 class IntermediateStack {
-    constructor() {   
+    constructor() {
         /** @type {IntermediateStackBlock[]} */
         this.blocks = [];
     }
