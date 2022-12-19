@@ -835,7 +835,7 @@ class ScriptTreeGenerator {
                 })
             });
         case 'motion_turnright':
-            return new IntermediateStackBlock(StackOpcode.MOTION_DIRECTION_SET, InputType.NUMBER, {
+            return new IntermediateStackBlock(StackOpcode.MOTION_DIRECTION_SET, {
                 direction: new IntermediateInput(InputOpcode.OP_ADD, InputType.NUMBER, {
                     left: new IntermediateInput(InputOpcode.MOTION_DIRECTION_GET, InputType.NUMBER),
                     right: this.descendInputOfBlock(block, 'DEGREES')
