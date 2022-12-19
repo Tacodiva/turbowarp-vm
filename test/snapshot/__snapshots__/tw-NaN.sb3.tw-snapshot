@@ -54,17 +54,17 @@ yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "aa", 
 if (compareEqual((((Math.log(-1) / Math.LN10) || 0) * 1), 0)) {
 yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "ac", null);
 }
-if (compareEqual((((Math.round(Math.sin((Math.PI * ((1 / 0) || 0)) / 180) * 1e10) / 1e10) || 0) * 1), 0)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "ae", null);
+if (((((Math.round(Math.sin((Math.PI * ((1 / 0) || 0)) / 180) * 1e10) / 1e10) || 0) * 1) === 0)) {
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, null);
 }
-if (compareEqual((((Math.round(Math.cos((Math.PI * ((1 / 0) || 0)) / 180) * 1e10) / 1e10) || 0) * 1), 0)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "ag", null);
+if (((((Math.round(Math.cos((Math.PI * ((1 / 0) || 0)) / 180) * 1e10) / 1e10) || 0) * 1) === 0)) {
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, null);
 }
-if (compareEqual(((tan(((1 / 0) || 0)) || 0) * 1), 0)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "ai", null);
+if ((((tan(((1 / 0) || 0)) || 0) * 1) === 0)) {
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, null);
 }
-if (compareEqual(((runtime.ext_scratch3_operators._random((-1 / 0), (1 / 0)) || 0) * 1), 0)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "ak", null);
+if ((((runtime.ext_scratch3_operators._random((-1 / 0), (1 / 0)) || 0) * 1) === 0)) {
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, null);
 }
 yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, "7", null);
 retire(); return;

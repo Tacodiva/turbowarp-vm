@@ -12,11 +12,11 @@ yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "k", n
 if (compareLessThan(("something".toLowerCase() === "else".toLowerCase()), ("1" + ""))) {
 yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "m", null);
 }
-if (compareGreaterThan(("something".toLowerCase() === "something".toLowerCase()), (0 + 0))) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "n", null);
+if (((+("something".toLowerCase() === "something".toLowerCase())) > (0 + 0))) {
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, null);
 }
-if (compareLessThan(("something".toLowerCase() === "else".toLowerCase()), (1 + 0))) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "o", null);
+if (((+("something".toLowerCase() === "else".toLowerCase())) < (1 + 0))) {
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, null);
 }
 yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, "l", null);
 retire(); return;
