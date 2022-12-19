@@ -350,9 +350,9 @@ class ScriptTreeGenerator {
                 case 'floor': return new IntermediateInput(InputOpcode.OP_FLOOR, InputType.NUMBER, {value});
                 case 'ceiling': return new IntermediateInput(InputOpcode.OP_CEILING, InputType.NUMBER, {value});
                 case 'sqrt': return new IntermediateInput(InputOpcode.OP_SQRT, InputType.NUMBER_OR_NAN, {value});
-                case 'sin': return new IntermediateInput(InputOpcode.OP_SIN, InputType.NUMBER, {value});
-                case 'cos': return new IntermediateInput(InputOpcode.OP_COS, InputType.NUMBER, {value});
-                case 'tan': return new IntermediateInput(InputOpcode.OP_TAN, InputType.NUMBER, {value});
+                case 'sin': return new IntermediateInput(InputOpcode.OP_SIN, InputType.NUMBER_OR_NAN, {value});
+                case 'cos': return new IntermediateInput(InputOpcode.OP_COS, InputType.NUMBER_OR_NAN, {value});
+                case 'tan': return new IntermediateInput(InputOpcode.OP_TAN, InputType.NUMBER_OR_NAN, {value});
                 case 'asin': return new IntermediateInput(InputOpcode.OP_ASIN, InputType.NUMBER_OR_NAN, {value});
                 case 'acos':return new IntermediateInput(InputOpcode.OP_ACOS, InputType.NUMBER_OR_NAN, {value});
                 case 'atan': return new IntermediateInput(InputOpcode.OP_ATAN, InputType.NUMBER, {value});
@@ -399,6 +399,7 @@ class ScriptTreeGenerator {
                 }
                 // If both are ints, hint this to the compiler
                 if (Cast.isInt(sFrom) && Cast.isInt(sTo)) {
+                    // Both inputs are ints, so we know neither are NaN
                     return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER, {
                         low: (nFrom <= nTo ? from : to).toType(InputType.NUMBER),
                         high: (nFrom <= nTo ? to : from).toType(InputType.NUMBER),
@@ -407,7 +408,7 @@ class ScriptTreeGenerator {
                     });
                 }
                 // Otherwise hint that these are floats
-                return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER, {
+                return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER_OR_NAN, {
                     low: (nFrom <= nTo ? from : to).toType(InputType.NUMBER),
                     high: (nFrom <= nTo ? to : from).toType(InputType.NUMBER),
                     useInts: false,
@@ -416,7 +417,7 @@ class ScriptTreeGenerator {
             } else if (from.opcode === InputOpcode.CONSTANT) {
                 // If only one value is known at compile-time, we can still attempt some optimizations.
                 if (!Cast.isInt(Cast.toNumber(from.inputs.value))) {
-                    return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER, {
+                    return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER_OR_NAN, {
                         low: from.toType(InputType.NUMBER),
                         high: to.toType(InputType.NUMBER),
                         useInts: false,
@@ -425,7 +426,7 @@ class ScriptTreeGenerator {
                 }
             } else if (to.opcode === InputOpcode.CONSTANT) {
                 if (!Cast.isInt(Cast.toNumber(from.inputs.value))) {
-                    return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER, {
+                    return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER_OR_NAN, {
                         low: from.toType(InputType.NUMBER),
                         high: to.toType(InputType.NUMBER),
                         useInts: false,
@@ -434,7 +435,7 @@ class ScriptTreeGenerator {
                 }
             }
             // No optimizations possible
-            return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER, {
+            return new IntermediateInput(InputOpcode.OP_RANDOM, InputType.NUMBER_OR_NAN, {
                 low: from,
                 high: to,
                 useInts: false,
