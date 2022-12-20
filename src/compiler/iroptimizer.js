@@ -73,7 +73,7 @@ class TypeState {
      */
     setVariableType(variable, type) {
         if (this.getVariableType(variable) === type) return false;
-        this.variables[variable.name] = type;
+        this.variables[variable.id] = type;
         return true;
     }
 
@@ -83,7 +83,7 @@ class TypeState {
      * @returns {InputType}
      */
     getVariableType(variable) {
-        return this.variables[variable.name] ?? InputType.ANY;
+        return this.variables[variable.id] ?? InputType.ANY;
     }
 }
 
