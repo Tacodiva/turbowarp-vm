@@ -53,7 +53,7 @@ class TypeState {
             const currentType = this.variables[varId] ?? InputType.ANY;
             const newType = currentType | other.variables[varId];
             this.variables[varId] = newType;
-            modified ||= currentType !== newType;
+            modified = modified || (currentType !== newType);
         }
         for (const varId in this.variables) {
             if (!other.variables[varId]) {
@@ -419,7 +419,7 @@ class IROptimizer {
                 const trueState = state.clone();
                 this.analyzeStack(inputs.whenTrue, trueState);
                 let modified = this.analyzeStack(inputs.whenFalse, state);
-                modified ||= state.or(trueState);
+                modified = modified || state.or(trueState);
                 return modified;
             } case StackOpcode.PROCEDURE_CALL:
                 // TDTODO If we've analyzed the procedure we can grab it's type info
@@ -440,7 +440,7 @@ class IROptimizer {
         let modified = false;
         for (const stackBlock of stack.blocks) {
             let stateChanged = this.analyzeStackBlock(stackBlock, state);
-            if (stackBlock.yields) stateChanged ||= state.clear();
+            if (stackBlock.yields) stateChanged = stateChanged || state.clear();
 
             if (stateChanged) {
                 if (stackBlock.exitState) stackBlock.exitState.or(state);

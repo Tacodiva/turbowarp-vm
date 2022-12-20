@@ -183,7 +183,7 @@ class ScriptTreeGenerator {
         }
 
         const intermediate = this.descendInput(block, preserveStrings);
-        this.script.yields ||= intermediate.yields;
+        this.script.yields = this.script.yields || intermediate.yields;
         return intermediate;
     }
 
@@ -1050,7 +1050,7 @@ class ScriptTreeGenerator {
             }
 
             const node = this.descendStackedBlock(block);
-            this.script.yields ||= node.yields;
+            this.script.yields = this.script.yields || node.yields;
             result.blocks.push(node);
 
             blockId = block.next;
