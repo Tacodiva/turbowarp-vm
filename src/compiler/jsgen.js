@@ -176,11 +176,11 @@ class JSGenerator {
 
         case InputOpcode.CONSTANT:
             if (block.isAlwaysType(InputType.NUMBER)) {
-                if (typeof node.value !== 'number') throw new Error(`JS: '${block.type}' type constant had ${typeof block.value} type value. Expected number.`);
+                if (typeof node.value !== 'number') throw new Error(`JS: '${block.type}' type constant had ${typeof node.value} type value. Expected number.`);
                 if (Object.is(node.value, -0)) return "-0";
                 return node.value.toString();
             } else if (block.isAlwaysType(InputType.BOOLEAN)) {
-                if (typeof node.value !== 'boolean') throw new Error(`JS: '${block.type}' type constant had ${typeof block.value} type value. Expected boolean.`);
+                if (typeof node.value !== 'boolean') throw new Error(`JS: '${block.type}' type constant had ${typeof node.value} type value. Expected boolean.`);
                 return node.value.toString();
             } else if (block.isSometimesType(InputType.STRING)) {
                 return `"${sanitize(node.value.toString())}"`;
@@ -942,7 +942,7 @@ class JSGenerator {
 
     /**
      * Generate a call into the compatibility layer.
-     * @param {IntermediateStackBlock} block The block to generate from.
+     * @param {IntermediateStackBlock | IntermediateInput} block The block to generate from.
      * @param {boolean} setFlags Whether flags should be set describing how this function was processed.
      * @param {string|null} [frameName] Name of the stack frame variable, if any
      * @returns {string} The JS of the call.

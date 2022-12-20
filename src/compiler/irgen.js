@@ -183,7 +183,7 @@ class ScriptTreeGenerator {
         }
 
         const intermediate = this.descendInput(block, preserveStrings);
-        this.script.yields |= intermediate.yields;
+        this.script.yields ||= intermediate.yields;
         return intermediate;
     }
 
@@ -691,7 +691,7 @@ class ScriptTreeGenerator {
             });
         case 'data_deleteoflist': {
             const index = this.descendInputOfBlock(block, 'INDEX');
-            if (index.opcode === InputOpcode.CONSTANT && index.value === 'all') {
+            if (index.isConstant('all')) {
                 return new IntermediateStackBlock(StackOpcode.LIST_DELETE_ALL, {
                     list: this.descendVariable(block, 'LIST', LIST_TYPE)
                 });
@@ -1050,7 +1050,7 @@ class ScriptTreeGenerator {
             }
 
             const node = this.descendStackedBlock(block);
-            this.script.yields |= node.yields;
+            this.script.yields ||= node.yields;
             result.blocks.push(node);
 
             blockId = block.next;
@@ -1527,10 +1527,7 @@ class IRGenerator {
         // Analyze scripts until no changes are made.
         while (this.analyzeScript(entry));
 
-        const ir = new IntermediateRepresentation();
-        ir.entry = entry;
-        ir.procedures = this.procedures;
-        return ir;
+        return new IntermediateRepresentation(entry, this.procedures);;
     }
 }
 

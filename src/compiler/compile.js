@@ -1,7 +1,7 @@
 // @ts-check
 
 const IRGenerator = require('./irgen');
-const IROptimizer = require('./iroptimizer');
+const { IROptimizer } = require('./iroptimizer');
 const JSGenerator = require('./jsgen');
 
 const compile = thread => {

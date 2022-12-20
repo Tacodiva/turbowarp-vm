@@ -2,6 +2,7 @@
 
 const Cast = require('../util/cast');
 const { InputOpcode, InputType } = require('./enums.js')
+const log = require('../util/log');
 
 /**
  * @fileoverview Common intermediates shared amongst parts of the compiler.
@@ -34,6 +35,16 @@ class IntermediateStackBlock {
          * @type {boolean}
          */
         this.yields = yields;
+
+        /**
+         * @type {import("./iroptimizer").TypeState?}
+         */
+        this.entryState = null;
+
+        /**
+         * @type {import("./iroptimizer").TypeState?}
+         */
+        this.exitState = null;
     }
 }
 
@@ -158,7 +169,7 @@ class IntermediateInput {
                         this.type = InputType.NUMBER;
                         this.inputs.value = +Cast.toBoolean(this.inputs.value);
                     }
-                    const numberValue = +this.inputs.value;
+                    var numberValue = +this.inputs.value;
                     if (numberValue) {
                         this.inputs.value = numberValue;
                     } else {
@@ -203,13 +214,13 @@ class IntermediateScript {
     constructor() {
         /**
          * The ID of the top block of this script.
-         * @type {string}
+         * @type {string?}
          */
         this.topBlockId = null;
 
         /**
          * List of nodes that make up this script.
-         * @type {IntermediateStack}
+         * @type {IntermediateStack?}
          */
         this.stack = null;
 
@@ -275,18 +286,23 @@ class IntermediateScript {
  * An IntermediateRepresentation contains scripts.
  */
 class IntermediateRepresentation {
-    constructor() {
+    /**
+     * 
+     * @param {IntermediateScript} entry 
+     * @param {Object.<string, IntermediateScript>} procedures 
+     */
+    constructor(entry, procedures) {
         /**
          * The entry point of this IR.
          * @type {IntermediateScript}
          */
-        this.entry = null;
+        this.entry = entry;
 
         /**
          * Maps procedure variants to their intermediate script.
          * @type {Object.<string, IntermediateScript>}
          */
-        this.procedures = {};
+        this.procedures = procedures;
     }
 }
 

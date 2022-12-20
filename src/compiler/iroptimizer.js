@@ -9,6 +9,9 @@ class TypeState {
         this.variables = {};
     }
 
+    /**
+     * @returns {boolean}
+     */
     clear() {
         let modified = false;
         for (const varId in this.variables) {
@@ -21,6 +24,10 @@ class TypeState {
         return modified;
     }
 
+
+    /**
+     * @returns {TypeState}
+     */
     clone() {
         var clone = new TypeState();
         for (const varId in this.variables) {
@@ -29,21 +36,32 @@ class TypeState {
         return clone;
     }
 
+    /**
+     * @param {TypeState} other 
+     */
     setAll(other) {
         this.variables = other.variables;
     }
 
+    /**
+     * @param {TypeState} other 
+     * @returns {boolean}
+     */
     or(other) {
         let modified = false;
         for (const varId in other.variables) {
             const currentType = this.variables[varId] ?? InputType.ANY;
             const newType = currentType | other.variables[varId];
             this.variables[varId] = newType;
-            modified |= currentType !== newType;
+            modified ||= currentType !== newType;
         }
         for (const varId in this.variables) {
-            if (!other.variables[varId])
-                this.variables[varId] = InputType.ANY;
+            if (!other.variables[varId]) {
+                if (this.variables[varId] !== InputType.ANY) {
+                    this.variables[varId] = InputType.ANY;
+                    modified = true;
+                }
+            }
         }
         return modified;
     }
@@ -399,21 +417,21 @@ class IROptimizer {
                 return this.analyzeLoopedStack(inputs.do, state, stackBlock);
             case StackOpcode.CONTROL_IF_ELSE: {
                 const trueState = state.clone();
-                let modified = this.analyzeStack(inputs.whenTrue, trueState);
-                modified |= this.analyzeStack(inputs.whenFalse, state);
-                modified |= state.or(trueState);
+                this.analyzeStack(inputs.whenTrue, trueState);
+                let modified = this.analyzeStack(inputs.whenFalse, state);
+                modified ||= state.or(trueState);
                 return modified;
             } case StackOpcode.PROCEDURE_CALL:
                 // TDTODO If we've analyzed the procedure we can grab it's type info
                 // instead of resetting everything.
                 return state.clear();
         }
-        
+
         return false;
     }
 
     /**
-     * @param {IntermediateStack} stack 
+     * @param {IntermediateStack?} stack 
      * @param {TypeState} state 
      * @returns {boolean}
      */
@@ -422,11 +440,11 @@ class IROptimizer {
         let modified = false;
         for (const stackBlock of stack.blocks) {
             let stateChanged = this.analyzeStackBlock(stackBlock, state);
-            if (stackBlock.yields) stateChanged |= state.clear();
+            if (stackBlock.yields) stateChanged ||= state.clear();
 
             if (stateChanged) {
-                if (stackBlock.typeState) stackBlock.typeState.or(state);
-                else stackBlock.typeState = state.clone();
+                if (stackBlock.exitState) stackBlock.exitState.or(state);
+                else stackBlock.exitState = state.clone();
                 modified = true;
             }
         }
@@ -443,14 +461,15 @@ class IROptimizer {
         if (block.yields) {
             let modified = state.clear();
             block.entryState = state.clone();
-            return this.analyzeStack(stack, state) | modified;
+            block.exitState = state.clone();
+            return this.analyzeStack(stack, state) || modified;
         } else {
             let modified = false;
             let keepLooping;
             do {
                 const newState = state.clone();
                 this.analyzeStack(stack, newState);
-                modified |= keepLooping = state.or(newState);
+                modified = keepLooping = state.or(newState);
             } while (keepLooping);
             block.entryState = state.clone();
             return modified;
@@ -488,7 +507,7 @@ class IROptimizer {
     }
 
     /**
-     * @param {IntermediateStack} stack 
+     * @param {IntermediateStack?} stack 
      * @param {TypeState} state 
      */
     optimizeStack(stack, state) {
@@ -503,8 +522,8 @@ class IROptimizer {
                     this.optimizeStack(input, state);
                 }
             }
-            if (stackBlock.typeState)
-                state = stackBlock.typeState;
+            if (stackBlock.exitState)
+                state = stackBlock.exitState;
         }
     }
 
@@ -512,8 +531,9 @@ class IROptimizer {
         const state = new TypeState();
 
         for (const procVariant of this.ir.entry.dependedProcedures) {
-            this.analyzeStack(this.ir.procedures[procVariant].stack, state);
-            this.optimizeStack(this.ir.procedures[procVariant].stack, state);
+            const procedure = this.ir.procedures[procVariant];
+            this.analyzeStack(procedure.stack, state);
+            this.optimizeStack(procedure.stack, state);
         }
 
         this.analyzeStack(this.ir.entry.stack, state);
@@ -522,4 +542,7 @@ class IROptimizer {
 }
 
 
-module.exports = IROptimizer;
+module.exports = {
+    IROptimizer,
+    TypeState
+};
