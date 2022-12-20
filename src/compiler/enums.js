@@ -1,3 +1,5 @@
+// @ts-check
+
 /**
  * @fileoverview Common enums shared amongst parts of the compiler.
  */
@@ -135,7 +137,6 @@ const StackOpcode = {
     CONTROL_STOP_SCRIPT: "control.stopScript",
     CONTROL_WAIT: "control.wait",
     CONTROL_WAIT_UNTIL: "control.waitUntil",
-    CONTROL_WHILE: "control.while",
 
     LIST_ADD: "list.add",
     LIST_INSERT: "list.instert",

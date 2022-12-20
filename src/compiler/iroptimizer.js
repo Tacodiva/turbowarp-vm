@@ -1,9 +1,11 @@
+// @ts-check
+
 const { IntermediateStack, IntermediateInput, IntermediateScript, IntermediateRepresentation, IntermediateStackBlock } = require('./intermediate');
 const { StackOpcode, InputOpcode, InputType } = require('./enums.js')
 
 class TypeState {
     constructor() {
-        /** @type {object.<string, InputType>}*/
+        /** @type {Object.<string, InputType>}*/
         this.variables = {};
     }
 
@@ -406,6 +408,8 @@ class IROptimizer {
                 // instead of resetting everything.
                 return state.clear();
         }
+        
+        return false;
     }
 
     /**

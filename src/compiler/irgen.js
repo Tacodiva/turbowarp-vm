@@ -1,3 +1,5 @@
+// @ts-check
+
 const Cast = require('../util/cast');
 const StringUtil = require('../util/string-util');
 const BlockType = require('../extension-support/block-type');

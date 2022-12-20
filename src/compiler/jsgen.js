@@ -1,3 +1,5 @@
+// @ts-check
+
 const log = require('../util/log');
 const VariablePool = require('./variable-pool');
 const jsexecute = require('./jsexecute');
@@ -75,7 +77,7 @@ class JSGenerator {
     /**
      * @param {IntermediateScript} script
      * @param {IntermediateRepresentation} ir
-     * @param {Target} target
+     * @param {import("../sprites/rendered-target")} target
      */
     constructor (script, ir, target) {
         this.script = script;
@@ -95,7 +97,7 @@ class JSGenerator {
 
         /**
          * The current Frame.
-         * @type {Frame}
+         * @type {Frame?}
          */
         this.currentFrame = null;
 
@@ -809,7 +811,7 @@ class JSGenerator {
 
     /**
      * Compile a Record of input objects into a safe JS string.
-     * @param {Record<string, unknown>} inputs
+     * @param {Record<string, IntermediateInput>} inputs
      * @returns {string}
      */
     descendInputRecord (inputs) {
