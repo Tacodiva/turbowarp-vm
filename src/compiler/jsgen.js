@@ -41,14 +41,18 @@ const functionNameVariablePool = new VariablePool('fun');
  */
 const generatorNameVariablePool = new VariablePool('gen');
 
-const isSafeInputForEqualsOptimization = (input) => {
+const isSafeInputForEqualsOptimization = (input, other) => {
     // Only optimize constants
     if (input.opcode !== InputOpcode.CONSTANT) return false;
     // Only optimize when the constant can always be thought of as a number
     if (input.isAlwaysType(InputType.NUMBER) || input.isAlwaysType(InputType.STRING_NUM)) {
-        // Never optimize 0, as if '< 0 = "" >' was optimized it would turn into
-        //  `0 === +""`, which would be true even though Scratch would return false.
-        return (+input.inputs.value) !== 0;
+        if (other.isSometimesType(InputType.STRING_NAN) || other.isSometimesType(InputType.BOOLEAN_INTERPRETABLE)) {
+            // Never optimize 0 if the other input can be '' or a boolean.
+            // eg. if '< 0 = "" >' was optimized it would turn into `0 === +""`,
+            //  which would be true even though Scratch would return false.
+            return (+input.inputs.value) !== 0;
+        }
+        return true;
     }
     return false;
 }
@@ -263,7 +267,7 @@ class JSGenerator {
                 return `(${this.descendInput(left.toType(InputType.NUMBER))} === ${this.descendInput(right.toType(InputType.NUMBER))})`;
             }
             // In certain conditions, we can use === when one of the operands is known to be a safe number.
-            if (isSafeInputForEqualsOptimization(left) || isSafeInputForEqualsOptimization(right)) {
+            if (isSafeInputForEqualsOptimization(left, right) || isSafeInputForEqualsOptimization(right, left)) {
                 return `(${this.descendInput(left.toType(InputType.NUMBER))} === ${this.descendInput(right.toType(InputType.NUMBER))})`;
             }
             // When either operand is known to never be a number, only use string comparison to avoid all number parsing.

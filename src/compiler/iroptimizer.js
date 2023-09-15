@@ -37,14 +37,14 @@ class TypeState {
     }
 
     /**
-     * @param {TypeState} other 
+     * @param {TypeState} other
      */
     setAll(other) {
         this.variables = other.variables;
     }
 
     /**
-     * @param {TypeState} other 
+     * @param {TypeState} other
      * @returns {boolean}
      */
     or(other) {
@@ -78,7 +78,7 @@ class TypeState {
     }
 
     /**
-     * 
+     *
      * @param {*} variable A variable codegen object.
      * @returns {InputType}
      */
@@ -90,7 +90,7 @@ class TypeState {
 class IROptimizer {
 
     /**
-     * @param {IntermediateRepresentation} ir 
+     * @param {IntermediateRepresentation} ir
      */
     constructor(ir) {
         /** @type {IntermediateRepresentation} */
@@ -98,8 +98,8 @@ class IROptimizer {
     }
 
     /**
-     * @param {IntermediateInput} inputBlock 
-     * @param {TypeState} state 
+     * @param {IntermediateInput} inputBlock
+     * @param {TypeState} state
      * @returns {InputType}
      */
     analyzeInputBlock(inputBlock, state) {
@@ -401,8 +401,8 @@ class IROptimizer {
     }
 
     /**
-     * @param {IntermediateStackBlock} stackBlock 
-     * @param {TypeState} state 
+     * @param {IntermediateStackBlock} stackBlock
+     * @param {TypeState} state
      * @returns {boolean}
      */
     analyzeStackBlock(stackBlock, state) {
@@ -419,7 +419,7 @@ class IROptimizer {
                 const trueState = state.clone();
                 this.analyzeStack(inputs.whenTrue, trueState);
                 let modified = this.analyzeStack(inputs.whenFalse, state);
-                modified = modified || state.or(trueState);
+                modified = state.or(trueState) || modified;
                 return modified;
             } case StackOpcode.PROCEDURE_CALL:
                 // TDTODO If we've analyzed the procedure we can grab it's type info
@@ -431,8 +431,8 @@ class IROptimizer {
     }
 
     /**
-     * @param {IntermediateStack?} stack 
-     * @param {TypeState} state 
+     * @param {IntermediateStack?} stack
+     * @param {TypeState} state
      * @returns {boolean}
      */
     analyzeStack(stack, state) {
@@ -452,8 +452,8 @@ class IROptimizer {
     }
 
     /**
-     * @param {IntermediateStack} stack 
-     * @param {TypeState} state 
+     * @param {IntermediateStack} stack
+     * @param {TypeState} state
      * @param {IntermediateStackBlock} block
      * @returns {boolean}
      */
@@ -477,8 +477,8 @@ class IROptimizer {
     }
 
     /**
-     * @param {IntermediateInput} input 
-     * @param {TypeState} state 
+     * @param {IntermediateInput} input
+     * @param {TypeState} state
      * @returns {IntermediateInput}
      */
     optimizeInput(input, state) {
@@ -507,8 +507,8 @@ class IROptimizer {
     }
 
     /**
-     * @param {IntermediateStack?} stack 
-     * @param {TypeState} state 
+     * @param {IntermediateStack?} stack
+     * @param {TypeState} state
      */
     optimizeStack(stack, state) {
         if (!stack) return;
@@ -527,15 +527,33 @@ class IROptimizer {
         }
     }
 
-    optimize() {
-        const state = new TypeState();
-
-        for (const procVariant of this.ir.entry.dependedProcedures) {
-            const procedure = this.ir.procedures[procVariant];
-            this.analyzeStack(procedure.stack, state);
-            this.optimizeStack(procedure.stack, state);
+    /**
+     *
+     * @param {IntermediateScript} procedure
+     * @param {string[]} optimized
+     */
+    optimizeProcedure(procedure, optimized) {
+        if (optimized.includes(procedure.procedureCode)) {
+            return;
         }
 
+        optimized.push(procedure.procedureCode);
+
+        for (const procVariant of procedure.dependedProcedures) {
+            this.optimizeProcedure(this.ir.procedures[procVariant], optimized);
+        }
+
+        const state = new TypeState();
+        this.analyzeStack(procedure.stack, state);
+        this.optimizeStack(procedure.stack, state);
+    }
+
+    optimize() {
+        const optimized = [];
+        for (const procVariant of this.ir.entry.dependedProcedures)
+            this.optimizeProcedure(this.ir.procedures[procVariant], optimized);
+
+        const state = new TypeState();
         this.analyzeStack(this.ir.entry.stack, state);
         this.optimizeStack(this.ir.entry.stack, state);
     }
