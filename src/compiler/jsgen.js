@@ -458,6 +458,33 @@ class JSGenerator {
             break;
         }
 
+        case StackOpcode.HAT_EDGE:
+            this.isInHat = true;
+            this.source += '{\n';
+            // For exact Scratch parity, evaluate the input before checking old edge state.
+            // Can matter if the input is not instantly evaluated.
+            this.source += `const resolvedValue = ${this.descendInput(node.condition)};\n`;
+            this.source += `const id = "${sanitize(node.id)}";\n`;
+            this.source += 'const hasOldEdgeValue = target.hasEdgeActivatedValue(id);\n';
+            this.source += `const oldEdgeValue = target.updateEdgeActivatedValue(id, resolvedValue);\n`;
+            this.source += `const edgeWasActivated = hasOldEdgeValue ? (!oldEdgeValue && resolvedValue) : resolvedValue;\n`;
+            this.source += `if (!edgeWasActivated) {\n`;
+            this.retire();
+            this.source += '}\n';
+            this.source += 'yield;\n';
+            this.source += '}\n';
+            this.isInHat = false;
+            break;
+
+        case StackOpcode.HAT_PREDICATE:
+            this.isInHat = true;
+            this.source += `if (!${this.descendInput(node.condition)}) {\n`;
+            this.retire();
+            this.source += '}\n';
+            this.source += 'yield;\n';
+            this.isInHat = false;
+            break;
+
         case StackOpcode.CONTROL_CLONE_CREATE:
             this.source += `runtime.ext_scratch3_control._createClone(${this.descendInput(node.target)}, target);\n`;
             break;
@@ -738,9 +765,10 @@ class JSGenerator {
                 // TODO still need to evaluate arguments
                 break;
             }
-
             const yieldForRecursion = !this.isWarp && procedureCode === this.script.procedureCode;
-            if (yieldForRecursion) {
+            const yieldForHat = this.isInHat;
+            if (yieldForRecursion || yieldForHat) {
+                // Direct yields.
                 this.yieldNotWarp();
             }
 

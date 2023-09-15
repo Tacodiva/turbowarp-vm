@@ -1381,6 +1381,57 @@ class ScriptTreeGenerator {
     }
 
     /**
+     * @param {*} hatBlock
+     * @returns {IntermediateStack}
+     */
+    walkHat(hatBlock) {
+        const nextBlock = hatBlock.next;
+        const opcode = hatBlock.opcode;
+        const hatInfo = this.runtime._hats[opcode];
+
+        if (this.thread.stackClick) {
+            // We still need to treat the hat as a normal block (so executableHat should be false) for
+            // interpreter parity, but the reuslt is ignored.
+            const opcodeFunction = this.runtime.getOpcodeFunction(opcode);
+            if (opcodeFunction) {
+                return new IntermediateStack([
+                    this.descendCompatLayerStack(hatBlock),
+                    ...this.walkStack(nextBlock).blocks
+                ]);
+            }
+            return this.walkStack(nextBlock);
+        }
+
+        if (hatInfo.edgeActivated) {
+            // Edge-activated HAT
+            this.script.yields = true;
+            this.script.executableHat = true;
+            return new IntermediateStack([
+                new IntermediateStackBlock(StackOpcode.HAT_EDGE, {
+                    id: hatBlock.id,
+                    condition: this.descendCompatLayerInput(hatBlock).toType(InputType.BOOLEAN)
+                }),
+                ...this.walkStack(nextBlock).blocks
+            ]);
+        }
+
+        const opcodeFunction = this.runtime.getOpcodeFunction(opcode);
+        if (opcodeFunction) {
+            // Predicate-based HAT
+            this.script.yields = true;
+            this.script.executableHat = true;
+            return new IntermediateStack([
+                new IntermediateStackBlock(StackOpcode.HAT_EDGE, {
+                    condition: this.descendCompatLayerInput(hatBlock).toType(InputType.BOOLEAN)
+                }),
+                ...this.walkStack(nextBlock).blocks
+            ]);
+        }
+
+        return this.walkStack(nextBlock);
+    }
+
+    /**
      * @param {string} topBlockId The ID of the top block of the script.
      * @returns {IntermediateScript}
      */

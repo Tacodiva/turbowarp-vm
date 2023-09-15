@@ -74,8 +74,12 @@ const InputType = {
     NUMBER_OR_NAN: 0x1FF,
     /** Anything that can be interperated as a number. Equal to NUMBER | STRING_NUM | BOOLEAN */
     NUMBER_INTERPRETABLE: 0x12FF,
+<<<<<<< HEAD
     
 >>>>>>> 2087b0e2 (Teach the compiler what an integer is)
+=======
+
+>>>>>>> a620ae88 (Merge "Fix compiler's hat implementation")
     /** Any string which as a non-NaN neumeric interpretation, excluding ''.  */
     STRING_NUM: 0x200,
     /** Any string which has no non-NaN neumeric interpretation, including ''. */
@@ -125,6 +129,9 @@ const StackOpcode = {
     DEBUGGER: "tw.debugger",
     VISUAL_REPORT: "visualReport",
     COMPATIBILITY_LAYER: "compat",
+
+    HAT_EDGE: "hat.edge",
+    HAT_PREDICATE: "hat.predicate",
 
     CONTROL_IF_ELSE: "control.if",
     CONTROL_CLONE_CREATE: "control.createClone",

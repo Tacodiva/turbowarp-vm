@@ -200,9 +200,12 @@ class IntermediateInput {
  * of a C block.
  */
 class IntermediateStack {
-    constructor() {
+    /**
+     * @param {IntermediateStackBlock[]} [blocks]
+     */
+    constructor(blocks) {
         /** @type {IntermediateStackBlock[]} */
-        this.blocks = [];
+        this.blocks = blocks ?? [];
     }
 }
 
