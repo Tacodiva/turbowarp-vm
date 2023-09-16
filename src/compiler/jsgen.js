@@ -155,10 +155,14 @@ class JSGenerator {
     descendInput(block) {
         const node = block.inputs;
         switch (block.opcode) {
+            case InputOpcode.NOP:
+                return `""`;
+
             case InputOpcode.PROCEDURE_ARG_BOOLEAN:
                 return `toBoolean(p${node.index})`;
             case InputOpcode.PROCEDURE_ARG_STRING_NUMBER:
                 return `p${node.index}`;
+
             case InputOpcode.CAST_BOOLEAN:
                 return `toBoolean(${this.descendInput(node.target)})`;
             case InputOpcode.CAST_NUMBER:
@@ -357,6 +361,37 @@ class JSGenerator {
             case InputOpcode.OP_POW_10:
                 return `(10 ** ${this.descendInput(node.value)})`;
 
+            case InputOpcode.PROCEDURE_CALL: {
+                const procedureCode = node.code;
+                const procedureVariant = node.variant;
+                const procedureData = this.ir.procedures[procedureVariant];
+                if (procedureData.stack === null) {
+                    // TODO still need to evaluate arguments for side effects
+                    return '""';
+                }
+
+                // Recursion makes this complicated because:
+                //  - We need to yield *between* each call in the same command block
+                //  - We need to evaluate arguments *before* that yield happens
+
+                const procedureReference = `thread.procedures["${sanitize(procedureVariant)}"]`;
+                const args = [];
+                for (const input of node.arguments) {
+                    args.push(this.descendInput(input));
+                }
+                const joinedArgs = args.join(',');
+
+                const yieldForRecursion = !this.isWarp && procedureCode === this.script.procedureCode;
+                if (yieldForRecursion) {
+                    const runtimeFunction = procedureData.yields ? 'yieldThenCallGenerator' : 'yieldThenCall';
+                    return `(yield* ${runtimeFunction}(${procedureReference}, ${joinedArgs}))`;
+                }
+                if (procedureData.yields) {
+                    return `(yield* ${procedureReference}(${joinedArgs}))`;
+                }
+                return `${procedureReference}(${joinedArgs})`;
+            }
+
             case InputOpcode.SENSING_ANSWER:
                 return `runtime.ext_scratch3_sensing._answer`;
             case InputOpcode.SENSING_COLOR_TOUCHING_COLOR:
@@ -532,11 +567,7 @@ class JSGenerator {
                 this.source += 'runtime.stopForTarget(target, thread);\n';
                 break;
             case StackOpcode.CONTROL_STOP_SCRIPT:
-                if (this.isProcedure) {
-                    this.source += 'return;\n';
-                } else {
-                    this.retire();
-                }
+                this.stopScript();
                 break;
             case StackOpcode.CONTROL_WAIT: {
                 const duration = this.localVariables.next();
@@ -760,9 +791,9 @@ class JSGenerator {
             case StackOpcode.PROCEDURE_CALL: {
                 const procedureCode = node.code;
                 const procedureVariant = node.variant;
-                // Do not generate any code for empty procedures.
                 const procedureData = this.ir.procedures[procedureVariant];
                 if (procedureData.stack === null) {
+                    // TODO still need to evaluate arguments
                     break;
                 }
                 const yieldForRecursion = !this.isWarp && procedureCode === this.script.procedureCode;
@@ -778,18 +809,17 @@ class JSGenerator {
                     }
                 }
                 this.source += `thread.procedures["${sanitize(procedureVariant)}"](`;
-                // Only include arguments if the procedure accepts any.
-                if (procedureData.arguments.length) {
-                    const args = [];
-                    for (const input of node.arguments) {
-                        args.push(this.descendInput(input));
-                    }
-                    this.source += args.join(',');
+                const args = [];
+                for (const input of node.arguments) {
+                    args.push(this.descendInput(input));
                 }
+                this.source += args.join(',');
                 this.source += `);\n`;
-                // Variable input types may have changes after a procedure call.
                 break;
             }
+            case StackOpcode.PROCEDURE_RETURN:
+                this.stopScriptAndReturn(this.descendInput(node.value));
+                break;
 
             case StackOpcode.SENSING_TIMER_RESET:
                 this.source += 'runtime.ioDevices.clock.resetProjectTimer();\n';
@@ -987,6 +1017,25 @@ class JSGenerator {
             name += `_${simplifiedProcedureCode}`;
         }
         return name;
+    }
+
+    stopScript() {
+        if (this.isProcedure) {
+            this.source += 'return "";\n';
+        } else {
+            this.retire();
+        }
+    }
+
+    /**
+     * @param {string} valueJS JS code of value to return.
+     */
+    stopScriptAndReturn(valueJS) {
+        if (this.isProcedure) {
+            this.source += `return ${valueJS};\n`;
+        } else {
+            this.retire();
+        }
     }
 
     /**

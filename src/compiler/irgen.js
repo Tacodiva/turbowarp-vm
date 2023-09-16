@@ -449,6 +449,11 @@ class ScriptTreeGenerator {
                     right: this.descendInputOfBlock(block, 'NUM2').toType(InputType.NUMBER)
                 });
 
+            case 'procedures_call': {
+                const procedureInfo = this.getProcedureInfo(block);
+                return new IntermediateInput(procedureInfo.opcode, InputType.ANY, procedureInfo.inputs, procedureInfo.yields);
+            }
+
             case 'sensing_answer':
                 return new IntermediateInput(InputOpcode.SENSING_ANSWER, InputType.STRING);
 
@@ -885,81 +890,26 @@ class ScriptTreeGenerator {
                 return new IntermediateStackBlock(StackOpcode.PEN_STAMP);
 
             case 'procedures_call': {
-                // setting of yields will be handled later in the analysis phase
-
                 const procedureCode = block.mutation.proccode;
+
+                if (block.mutation.return) {
+                    const visualReport = this.descendVisualReport(block);
+                    if (visualReport) {
+                        return visualReport;
+                    }
+                }
+
                 if (procedureCode === 'tw:debugger;') {
                     return new IntermediateStackBlock(StackOpcode.DEBUGGER);
                 }
-                const paramNamesIdsAndDefaults = this.blocks.getProcedureParamNamesIdsAndDefaults(procedureCode);
-                if (paramNamesIdsAndDefaults === null) {
-                    return new IntermediateStackBlock(StackOpcode.NOP);
-                }
 
-                const [paramNames, paramIds, paramDefaults] = paramNamesIdsAndDefaults;
-
-                const addonBlock = this.runtime.getAddonBlock(procedureCode);
-                if (addonBlock) {
-                    const args = {};
-                    for (let i = 0; i < paramIds.length; i++) {
-                        let value;
-                        if (block.inputs[paramIds[i]] && block.inputs[paramIds[i]].block) {
-                            value = this.descendInputOfBlock(block, paramIds[i], true);
-                        } else {
-                            value = this.createConstantInput(paramDefaults[i], true);
-                        }
-                        args[paramNames[i]] = value;
-                    }
-                    return new IntermediateStackBlock(StackOpcode.ADDON_CALL, {
-                        code: procedureCode,
-                        arguments: args,
-                        blockId: block.id
-                    }, true);
-                }
-
-                const definitionId = this.blocks.getProcedureDefinition(procedureCode);
-                const definitionBlock = this.blocks.getBlock(definitionId);
-                if (!definitionBlock) {
-                    return new IntermediateStackBlock(StackOpcode.NOP);
-                }
-                const innerDefinition = this.blocks.getBlock(definitionBlock.inputs.custom_block.block);
-
-                let isWarp = this.script.isWarp;
-                if (!isWarp) {
-                    if (innerDefinition && innerDefinition.mutation) {
-                        const warp = innerDefinition.mutation.warp;
-                        if (typeof warp === 'boolean') {
-                            isWarp = warp;
-                        } else if (typeof warp === 'string') {
-                            isWarp = JSON.parse(warp);
-                        }
-                    }
-                }
-
-                const variant = generateProcedureVariant(procedureCode, isWarp);
-
-                if (!this.script.dependedProcedures.includes(variant)) {
-                    this.script.dependedProcedures.push(variant);
-                }
-
-                const args = [];
-                for (let i = 0; i < paramIds.length; i++) {
-                    let value;
-                    if (block.inputs[paramIds[i]] && block.inputs[paramIds[i]].block) {
-                        value = this.descendInputOfBlock(block, paramIds[i], true);
-                    } else {
-                        value = this.createConstantInput(paramDefaults[i], true);
-                    }
-                    args.push(value);
-                }
-
-                return new IntermediateStackBlock(StackOpcode.PROCEDURE_CALL, {
-                    code: procedureCode,
-                    variant,
-                    arguments: args
-                }, // Non-warp direct recursion yields.
-                    !this.script.isWarp && procedureCode === this.script.procedureCode);
+                const procedure = this.getProcedureInfo(block);
+                return new IntermediateStackBlock(procedure.opcode, procedure.inputs, procedure.yields);
             }
+            case 'procedures_return':
+                return new IntermediateStackBlock(StackOpcode.PROCEDURE_RETURN, {
+                    value: this.descendInputOfBlock(block, "VALUE")
+                });
 
         case 'sensing_resettimer':
             return new IntermediateStackBlock(StackOpcode.SENSING_TIMER_RESET);
@@ -981,17 +931,9 @@ class ScriptTreeGenerator {
                 }
             }
 
-                // When this thread was triggered by a stack click, attempt to compile as an input.
-                // TODO: perhaps this should be moved to generate()?
-                if (this.thread.stackClick) {
-                    try {
-                        const inputNode = this.descendInput(block);
-                        return new IntermediateStackBlock(StackOpcode.VISUAL_REPORT, {
-                            input: inputNode
-                        });
-                    } catch (e) {
-                        // Ignore
-                    }
+                const asVisualReport = this.descendVisualReport(block);
+                if (asVisualReport) {
+                    return asVisualReport;
                 }
 
                 log.warn(`IR: Unknown stacked block: ${block.opcode}`, block);
@@ -1040,6 +982,112 @@ class ScriptTreeGenerator {
         }
 
         return result;
+    }
+
+    /**
+     * @param {*} block
+     * @returns {{
+     *  opcode: StackOpcode & InputOpcode,
+     *  inputs?: *,
+     *  yields: boolean
+     * }}
+     */
+    getProcedureInfo(block) {
+        const procedureCode = block.mutation.proccode;
+        const paramNamesIdsAndDefaults = this.blocks.getProcedureParamNamesIdsAndDefaults(procedureCode);
+
+        if (paramNamesIdsAndDefaults === null) {
+            return { opcode: StackOpcode.NOP, yields: false };
+        }
+
+        const [paramNames, paramIds, paramDefaults] = paramNamesIdsAndDefaults;
+
+        const addonBlock = this.runtime.getAddonBlock(procedureCode);
+        if (addonBlock) {
+            const args = {};
+            for (let i = 0; i < paramIds.length; i++) {
+                let value;
+                if (block.inputs[paramIds[i]] && block.inputs[paramIds[i]].block) {
+                    value = this.descendInputOfBlock(block, paramIds[i], true);
+                } else {
+                    value = this.createConstantInput(paramDefaults[i], true);
+                }
+                args[paramNames[i]] = value;
+            }
+
+            return {
+                opcode: StackOpcode.ADDON_CALL,
+                inputs: {
+                    code: procedureCode,
+                    arguments: args,
+                    blockId: block.id
+                },
+                yields: true
+            };
+        }
+
+        const definitionId = this.blocks.getProcedureDefinition(procedureCode);
+        const definitionBlock = this.blocks.getBlock(definitionId);
+        if (!definitionBlock) {
+            return { opcode: StackOpcode.NOP, yields: false };
+        }
+        const innerDefinition = this.blocks.getBlock(definitionBlock.inputs.custom_block.block);
+
+        let isWarp = this.script.isWarp;
+        if (!isWarp) {
+            if (innerDefinition && innerDefinition.mutation) {
+                const warp = innerDefinition.mutation.warp;
+                if (typeof warp === 'boolean') {
+                    isWarp = warp;
+                } else if (typeof warp === 'string') {
+                    isWarp = JSON.parse(warp);
+                }
+            }
+        }
+
+        const variant = generateProcedureVariant(procedureCode, isWarp);
+
+        if (!this.script.dependedProcedures.includes(variant)) {
+            this.script.dependedProcedures.push(variant);
+        }
+
+        const args = [];
+        for (let i = 0; i < paramIds.length; i++) {
+            let value;
+            if (block.inputs[paramIds[i]] && block.inputs[paramIds[i]].block) {
+                value = this.descendInputOfBlock(block, paramIds[i], true);
+            } else {
+                value = this.createConstantInput(paramDefaults[i], true);
+            }
+            args.push(value);
+        }
+
+        return {
+            opcode: StackOpcode.PROCEDURE_CALL,
+            inputs: {
+                code: procedureCode,
+                variant,
+                arguments: args
+            },
+            yields: !this.script.isWarp && procedureCode === this.script.procedureCode
+        };
+    }
+
+    /**
+     * @param {*} block
+     * @returns {IntermediateStackBlock | null}
+     */
+    descendVisualReport(block) {
+        if (!this.thread.stackClick || block.next) {
+            return null;
+        }
+        try {
+            return new IntermediateStackBlock(StackOpcode.VISUAL_REPORT, {
+                input: this.descendInput(block)
+            });
+        } catch (e) {
+            return null;
+        }
     }
 
     /**

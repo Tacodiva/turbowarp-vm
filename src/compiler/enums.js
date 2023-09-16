@@ -202,6 +202,7 @@ const StackOpcode = {
 
     SENSING_TIMER_RESET: "timer.reset",
 
+    PROCEDURE_RETURN: "procedures.return",
     PROCEDURE_CALL: "procedures.call"
 };
 
@@ -211,6 +212,9 @@ const StackOpcode = {
  * @enum {string}
  */
 const InputOpcode = {
+    NOP: "noop",
+
+    ADDON_CALL: "addons.call",
     CONSTANT: "constant",
 
     CAST_NUMBER: "cast.toNumber",
@@ -302,6 +306,7 @@ const InputOpcode = {
     SENSING_TOUCHING_OBJECT: "sensing.touching",
     SENSING_USERNAME: "sensing.username",
 
+    PROCEDURE_CALL: "procedures.call",
     PROCEDURE_ARG_STRING_NUMBER: "args.stringNumber",
     PROCEDURE_ARG_BOOLEAN: "args.boolean",
 
