@@ -163,6 +163,9 @@ class JSGenerator {
             case InputOpcode.PROCEDURE_ARG_STRING_NUMBER:
                 return `p${node.index}`;
 
+            case InputOpcode.ADDON_CALL:
+                return `(${this.descendAddonCall(node)})`;
+
             case InputOpcode.CAST_BOOLEAN:
                 return `toBoolean(${this.descendInput(node.target)})`;
             case InputOpcode.CAST_NUMBER:
@@ -475,10 +478,7 @@ class JSGenerator {
         const node = block.inputs;
         switch (block.opcode) {
             case StackOpcode.ADDON_CALL: {
-                const inputs = this.descendInputRecord(node.arguments);
-                const blockFunction = `runtime.getAddonBlock("${sanitize(node.code)}").callback`;
-                const blockId = `"${sanitize(node.blockId)}"`;
-                this.source += `yield* executeInCompatibilityLayer(${inputs}, ${blockFunction}, ${this.isWarp}, false, ${blockId});\n`;
+                this.source += `${this.descendAddonCall(node)};\n`
                 break;
             }
 
@@ -904,6 +904,21 @@ class JSGenerator {
         this.popFrame();
     }
 
+    /**
+     * @param {*} node
+     * @returns {string}
+     */
+    descendAddonCall(node) {
+        const inputs = this.descendInputRecord(node.arguments);
+        const blockFunction = `runtime.getAddonBlock("${sanitize(node.code)}").callback`;
+        const blockId = `"${sanitize(node.blockId)}"`;
+        return `yield* executeInCompatibilityLayer(${inputs}, ${blockFunction}, ${this.isWarp}, false, ${blockId})`;
+    }
+
+    /**
+     * @param {*} variable
+     * @returns {string}
+     */
     referenceVariable(variable) {
         if (variable.scope === 'target') {
             return this.evaluateOnce(`target.variables["${sanitize(variable.id)}"]`);
@@ -911,6 +926,10 @@ class JSGenerator {
         return this.evaluateOnce(`stage.variables["${sanitize(variable.id)}"]`);
     }
 
+    /**
+     * @param {string} source
+     * @returns {string}
+     */
     evaluateOnce(source) {
         if (this._setupVariables.hasOwnProperty(source)) {
             return this._setupVariables[source];
