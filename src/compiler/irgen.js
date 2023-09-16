@@ -143,7 +143,7 @@ class ScriptTreeGenerator {
         const numConstant = +constant;
         const preserve = preserveStrings && this.namesOfCostumesAndSounds.has(constant);
 
-        if (!Number.isNaN(numConstant) && constant.trim() !== '') {
+        if (!Number.isNaN(numConstant) && (constant.trim() !== '' || constant.includes("\t"))) {
             if (!preserve && numConstant.toString() === constant) {
                 return new IntermediateInput(InputOpcode.CONSTANT, IntermediateInput.getNumberInputType(numConstant), { value: numConstant });
             }

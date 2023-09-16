@@ -184,7 +184,7 @@ class JSGenerator {
 
             case InputOpcode.COMPATIBILITY_LAYER:
                 // Compatibility layer inputs never use flags.
-                return `(${this.generateCompatibilityLayerCall(block, false)})`;
+                return `(${this.generateCompatibilityLayerCall(node, false)})`;
 
             case InputOpcode.CONSTANT:
                 if (block.isAlwaysType(InputType.NUMBER)) {
@@ -766,7 +766,6 @@ class JSGenerator {
                 break;
 
             case StackOpcode.NOP:
-                // todo: remove noop entirely
                 break;
 
             case StackOpcode.PEN_CLEAR:
@@ -1017,13 +1016,12 @@ class JSGenerator {
 
     /**
      * Generate a call into the compatibility layer.
-     * @param {IntermediateStackBlock | IntermediateInput} block The block to generate from.
+     * @param {*} node The node of the block to generate from.
      * @param {boolean} setFlags Whether flags should be set describing how this function was processed.
      * @param {string|null} [frameName] Name of the stack frame variable, if any
      * @returns {string} The JS of the call.
      */
-    generateCompatibilityLayerCall(block, setFlags, frameName) {
-        const node = block.inputs;
+    generateCompatibilityLayerCall(node, setFlags, frameName) {
         const opcode = node.opcode;
 
         let result = 'yield* executeInCompatibilityLayer({';
