@@ -386,7 +386,8 @@ class JSGenerator {
                 const joinedArgs = args.join(',');
 
                 const yieldForRecursion = !this.isWarp && procedureCode === this.script.procedureCode;
-                if (yieldForRecursion) {
+                const yieldForHat = this.isInHat;
+                if (yieldForRecursion || yieldForHat) {
                     const runtimeFunction = procedureData.yields ? 'yieldThenCallGenerator' : 'yieldThenCall';
                     return `(yield* ${runtimeFunction}(${procedureReference}, ${joinedArgs}))`;
                 }
@@ -819,8 +820,7 @@ class JSGenerator {
                     break;
                 }
                 const yieldForRecursion = !this.isWarp && procedureCode === this.script.procedureCode;
-                const yieldForHat = this.isInHat;
-                if (yieldForRecursion || yieldForHat) {
+                if (yieldForRecursion) {
                     // Direct yields.
                     this.yieldNotWarp();
                 }
@@ -1023,7 +1023,7 @@ class JSGenerator {
      * @param {string|null} [frameName] Name of the stack frame variable, if any
      * @returns {string} The JS of the call.
      */
-    generateCompatibilityLayerCall(node, setFlags, frameName) {
+    generateCompatibilityLayerCall(node, setFlags, frameName = null) {
         const opcode = node.opcode;
 
         let result = 'yield* executeInCompatibilityLayer({';

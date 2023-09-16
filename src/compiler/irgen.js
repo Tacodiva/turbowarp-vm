@@ -1282,6 +1282,7 @@ class ScriptTreeGenerator {
         }
         return new IntermediateInput(InputOpcode.COMPATIBILITY_LAYER, InputType.ANY, {
             opcode: block.opcode,
+            id: block.id,
             inputs,
             fields
         }, true);
@@ -1319,6 +1320,7 @@ class ScriptTreeGenerator {
 
         return new IntermediateStackBlock(StackOpcode.COMPATIBILITY_LAYER, {
             opcode: block.opcode,
+            id: block.id,
             blockType,
             inputs,
             fields,
@@ -1468,7 +1470,7 @@ class ScriptTreeGenerator {
             this.script.yields = true;
             this.script.executableHat = true;
             return new IntermediateStack([
-                new IntermediateStackBlock(StackOpcode.HAT_EDGE, {
+                new IntermediateStackBlock(StackOpcode.HAT_PREDICATE, {
                     condition: this.descendCompatLayerInput(hatBlock).toType(InputType.BOOLEAN)
                 }),
                 ...this.walkStack(nextBlock).blocks
