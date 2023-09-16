@@ -197,7 +197,7 @@ class ScriptTreeGenerator {
     descendInput(block, preserveStrings = false) {
         switch (block.opcode) {
             case 'colour_picker':
-                return this.createConstantInput(block.fields.COLOUR.value);
+                return this.createConstantInput(block.fields.COLOUR.value, true);
             case 'math_angle':
             case 'math_integer':
             case 'math_number':
@@ -459,8 +459,8 @@ class ScriptTreeGenerator {
 
             case 'sensing_coloristouchingcolor':
                 return new IntermediateInput(InputOpcode.SENSING_COLOR_TOUCHING_COLOR, InputType.BOOLEAN, {
-                    target: this.descendInputOfBlock(block, 'COLOR2'),
-                    mask: this.descendInputOfBlock(block, 'COLOR')
+                    target: this.descendInputOfBlock(block, 'COLOR2').toType(InputType.NUMBER),
+                    mask: this.descendInputOfBlock(block, 'COLOR').toType(InputType.NUMBER)
                 });
             case 'sensing_current':
                 switch (block.fields.CURRENTMENU.value.toLowerCase()) {
@@ -525,20 +525,20 @@ class ScriptTreeGenerator {
                 }
             }
 
-            return new IntermediateInput(InputOpcode.SENSING_OF_VAR, InputType.ANY, { object, property });
-        case 'sensing_timer':
-            this.usesTimer = true;
-            return new IntermediateInput(InputOpcode.SENSING_TIMER_GET, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO);
-        case 'sensing_touchingcolor':
-            return new IntermediateInput(InputOpcode.SENSING_TOUCHING_COLOR, InputType.BOOLEAN, {
-                color: this.descendInputOfBlock(block, 'COLOR')
-            });
-        case 'sensing_touchingobject':
-            return new IntermediateInput(InputOpcode.SENSING_TOUCHING_OBJECT, InputType.BOOLEAN, {
-                object: this.descendInputOfBlock(block, 'TOUCHINGOBJECTMENU')
-            });
-        case 'sensing_username':
-            return new IntermediateInput(InputOpcode.SENSING_USERNAME, InputType.STRING);
+                return new IntermediateInput(InputOpcode.SENSING_OF_VAR, InputType.ANY, { object, property });
+            case 'sensing_timer':
+                this.usesTimer = true;
+                return new IntermediateInput(InputOpcode.SENSING_TIMER_GET, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO);
+            case 'sensing_touchingcolor':
+                return new IntermediateInput(InputOpcode.SENSING_TOUCHING_COLOR, InputType.BOOLEAN, {
+                    color: this.descendInputOfBlock(block, 'COLOR').toType(InputType.NUMBER)
+                });
+            case 'sensing_touchingobject':
+                return new IntermediateInput(InputOpcode.SENSING_TOUCHING_OBJECT, InputType.BOOLEAN, {
+                    object: this.descendInputOfBlock(block, 'TOUCHINGOBJECTMENU')
+                });
+            case 'sensing_username':
+                return new IntermediateInput(InputOpcode.SENSING_USERNAME, InputType.STRING);
 
             case 'sound_sounds_menu':
                 // This menu is special compared to other menus -- it actually has an opcode function.
@@ -868,7 +868,7 @@ class ScriptTreeGenerator {
                 });
             case 'pen_setPenColorToColor':
                 return new IntermediateStackBlock(StackOpcode.PEN_COLOR_SET, {
-                    color: this.descendInputOfBlock(block, 'COLOR')
+                    color: this.descendInputOfBlock(block, 'COLOR').toType(InputType.NUMBER)
                 });
             case 'pen_setPenHueToNumber':
                 return new IntermediateStackBlock(StackOpcode.PEN_COLOR_HUE_SET_LEGACY, {
