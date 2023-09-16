@@ -500,30 +500,30 @@ class ScriptTreeGenerator {
                     return new IntermediateInput(InputOpcode.SENSING_OF_VOLUME, InputType.NUMBER_POS_REAL | InputType.NUMBER_ZERO, { object, property });
                 }
 
-            if (object.isConstant("_stage_")) {
-                switch (property) {
-                    case 'background #': // fallthrough for scratch 1.0 compatibility
-                    case 'backdrop #':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NUMBER, InputType.NUMBER_POS_REAL);
-                    case 'backdrop name':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NAME, InputType.STRING);
+                if (object.isConstant("_stage_")) {
+                    switch (property) {
+                        case 'background #': // fallthrough for scratch 1.0 compatibility
+                        case 'backdrop #':
+                            return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NUMBER, InputType.NUMBER_POS_REAL);
+                        case 'backdrop name':
+                            return new IntermediateInput(InputOpcode.SENSING_OF_BACKDROP_NAME, InputType.STRING);
+                    }
+                } else {
+                    switch (property) {
+                        case 'x position':
+                            return new IntermediateInput(InputOpcode.SENSING_OF_POS_X, InputType.NUMBER_REAL, { object });
+                        case 'y position':
+                            return new IntermediateInput(InputOpcode.SENSING_OF_POS_Y, InputType.NUMBER_REAL, { object });
+                        case 'direction':
+                            return new IntermediateInput(InputOpcode.SENSING_OF_DIRECTION, InputType.NUMBER_REAL, { object });
+                        case 'costume #':
+                            return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NUMBER, InputType.NUMBER_POS_REAL, { object });
+                        case 'costume name':
+                            return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NAME, InputType.STRING, { object });
+                        case 'size':
+                            return new IntermediateInput(InputOpcode.SENSING_OF_SIZE, InputType.NUMBER_POS_REAL, { object });
+                    }
                 }
-            } else {
-                switch (property) {
-                    case 'x position':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_POS_X, InputType.NUMBER_REAL, { object });
-                    case 'y position':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_POS_Y, InputType.NUMBER_REAL, { object });
-                    case 'direction':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_DIRECTION, InputType.NUMBER_REAL, { object });
-                    case 'costume #':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NUMBER, InputType.NUMBER_POS_REAL, { object });
-                    case 'costume name':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_COSTUME_NAME, InputType.STRING, { object });
-                    case 'size':
-                        return new IntermediateInput(InputOpcode.SENSING_OF_SIZE, InputType.NUMBER_POS_REAL, { object });
-                }
-            }
 
                 return new IntermediateInput(InputOpcode.SENSING_OF_VAR, InputType.ANY, { object, property });
             case 'sensing_timer':
@@ -911,25 +911,25 @@ class ScriptTreeGenerator {
                     value: this.descendInputOfBlock(block, "VALUE")
                 });
 
-        case 'sensing_resettimer':
-            return new IntermediateStackBlock(StackOpcode.SENSING_TIMER_RESET);
+            case 'sensing_resettimer':
+                return new IntermediateStackBlock(StackOpcode.SENSING_TIMER_RESET);
 
-        default: {
-            const opcodeFunction = this.runtime.getOpcodeFunction(block.opcode);
-            if (opcodeFunction) {
-                // It might be a non-compiled primitive from a standard category
-                if (compatBlocks.stacked.includes(block.opcode)) {
-                    return this.descendCompatLayerStack(block);
-                }
-                // It might be an extension block.
-                const blockInfo = this.getBlockInfo(block.opcode);
-                if (blockInfo) {
-                    const type = blockInfo.info.blockType;
-                    if (type === BlockType.COMMAND) {
+            default: {
+                const opcodeFunction = this.runtime.getOpcodeFunction(block.opcode);
+                if (opcodeFunction) {
+                    // It might be a non-compiled primitive from a standard category
+                    if (compatBlocks.stacked.includes(block.opcode)) {
                         return this.descendCompatLayerStack(block);
                     }
+                    // It might be an extension block.
+                    const blockInfo = this.getBlockInfo(block.opcode);
+                    if (blockInfo) {
+                        const type = blockInfo.info.blockType;
+                        if (type === BlockType.COMMAND || type === BlockType.CONDITIONAL || type === BlockType.LOOP) {
+                            return this.descendCompatLayerStack(block);
+                        }
+                    }
                 }
-            }
 
                 const asVisualReport = this.descendVisualReport(block);
                 if (asVisualReport) {
@@ -1296,18 +1296,33 @@ class ScriptTreeGenerator {
     descendCompatLayerStack(block) {
         const inputs = {};
         for (const name of Object.keys(block.inputs)) {
-            inputs[name] = this.descendInputOfBlock(block, name, true);
+            if (!name.startsWith("SUBSTACK")) {
+                inputs[name] = this.descendInputOfBlock(block, name, true);
+            }
         }
 
         const fields = {};
         for (const name of Object.keys(block.fields)) {
             fields[name] = block.fields[name].value;
         }
+
+        const blockInfo = this.getBlockInfo(block.opcode);
+        const blockType = (blockInfo && blockInfo.info && blockInfo.info.blockType) || BlockType.COMMAND;
+        const substacks = [];
+        if (blockType === BlockType.CONDITIONAL || blockType === BlockType.LOOP) {
+            const branchCount = blockInfo.info.branchCount;
+            for (let i = 0; i < branchCount; i++) {
+                const inputName = i === 0 ? 'SUBSTACK' : `SUBSTACK${i + 1}`;
+                substacks.push(this.descendSubstack(block, inputName));
+            }
+        }
+
         return new IntermediateStackBlock(StackOpcode.COMPATIBILITY_LAYER, {
             opcode: block.opcode,
             blockType,
             inputs,
-            fields
+            fields,
+            substacks
         }, true);
     }
 

@@ -1,6 +1,7 @@
 // @ts-check
 
 const log = require('../util/log');
+const BlockType = require('../extension-support/block-type');
 const VariablePool = require('./variable-pool');
 const jsexecute = require('./jsexecute');
 const environment = require('./environment');
@@ -486,7 +487,27 @@ class JSGenerator {
                 // If the last command in a loop returns a promise, immediately continue to the next iteration.
                 // If you don't do this, the loop effectively yields twice per iteration and will run at half-speed.
                 const isLastInLoop = this.isLastBlockInLoop();
-                this.source += `${this.generateCompatibilityLayerCall(block, isLastInLoop)};\n`;
+
+                const blockType = node.blockType;
+                if (blockType === BlockType.COMMAND || blockType === BlockType.HAT) {
+                    this.source += `${this.generateCompatibilityLayerCall(node, isLastInLoop)};\n`;
+                } else if (blockType === BlockType.CONDITIONAL) {
+                    this.source += `switch (Math.round(${this.generateCompatibilityLayerCall(node, isLastInLoop)})) {\n`;
+                    for (let i = 0; i < node.substacks.length; i++) {
+                        this.source += `case ${i + 1}: {\n`;
+                        this.descendStack(node.substacks[i], new Frame(false));
+                        this.source += `break;\n`;
+                        this.source += `}\n`;
+                    }
+                    this.source += `}\n`;
+                } else if (node.blockType === BlockType.LOOP) {
+                    const stackFrameName = this.localVariables.next();
+                    this.source += `const ${stackFrameName} = persistentStackFrame();\n`;
+                    this.source += `while (toBoolean(${this.generateCompatibilityLayerCall(node, isLastInLoop, stackFrameName)})) {\n`;
+                    this.descendStack(node.substacks[0], new Frame(true));
+                    this.source += '}\n';
+                }
+
                 if (isLastInLoop) {
                     this.source += 'if (hasResumedFromPromise) {hasResumedFromPromise = false;continue;}\n';
                 }
@@ -1001,7 +1022,7 @@ class JSGenerator {
      * @param {string|null} [frameName] Name of the stack frame variable, if any
      * @returns {string} The JS of the call.
      */
-    generateCompatibilityLayerCall(block, setFlags) {
+    generateCompatibilityLayerCall(block, setFlags, frameName) {
         const node = block.inputs;
         const opcode = node.opcode;
 
@@ -1017,7 +1038,7 @@ class JSGenerator {
             result += `"${sanitize(fieldName)}":"${sanitize(field)}",`;
         }
         const opcodeFunction = this.evaluateOnce(`runtime.getOpcodeFunction("${sanitize(opcode)}")`);
-        result += `}, ${opcodeFunction}, ${this.isWarp}, ${setFlags}, "${sanitize(node.id)}", ${frameName})`;
+        result += `}, ${opcodeFunction}, ${this.isWarp}, ${setFlags}, null, ${frameName})`;
 
         return result;
     }
