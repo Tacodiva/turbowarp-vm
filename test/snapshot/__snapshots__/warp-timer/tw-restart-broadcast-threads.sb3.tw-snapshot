@@ -6,7 +6,7 @@
 const b0 = runtime.getOpcodeFunction("looks_say");
 const b1 = stage.variables["`jEk@4|i[#Fk?(8x)AV.-my variable"];
 return function* genXYZ () {
-yield* executeInCompatibilityLayer({"MESSAGE":"plan 1",}, b0, false, false, "aQ(Y!Bs3;[rV^Q%AQ,NX", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"plan 1",}, b0, false, false, null, undefined);
 b1.value = 0;
 startHats("event_whenbroadcastreceived", { BROADCAST_OPTION: "message1" });
 startHats("event_whenbroadcastreceived", { BROADCAST_OPTION: "message1" });
@@ -19,10 +19,11 @@ yield;
 }
 thread.timer = null;
 if (((+b1.value || 0) === 1)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, "`SX*FG*Lwo*0_T=box-@", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b0, false, false, null, undefined);
 }
-yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, "|#`zzPA_x%{`FyIAQhb4", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, null, undefined);
 retire(); return;
+retire();
 }; })
 
 // Sprite2 script
@@ -30,5 +31,6 @@ retire(); return;
 const b0 = stage.variables["`jEk@4|i[#Fk?(8x)AV.-my variable"];
 return function* genXYZ () {
 b0.value = (b0.value + 1);
+retire(); return;
 retire();
 }; })

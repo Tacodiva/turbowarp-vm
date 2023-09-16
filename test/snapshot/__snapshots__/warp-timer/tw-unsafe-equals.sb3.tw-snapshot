@@ -7,80 +7,81 @@ const b0 = runtime.getOpcodeFunction("looks_say");
 const b1 = stage.variables[",OktMIwz{~bdgWnPEa8u"];
 const b2 = stage.variables["yfy(G`K5K^fJcXAfiN4i"];
 return function* genXYZ () {
-yield* executeInCompatibilityLayer({"MESSAGE":"plan 14",}, b0, false, false, "S8W[CSRh5A:[y8s/Ridj", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"plan 14",}, b0, false, false, null, undefined);
 if ((10 === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 1",}, b0, false, false, "1ove2a-$DQw7qy5PGdgq", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 1",}, b0, false, false, null, undefined);
 }
 if ((10 === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 2",}, b0, false, false, "@A5}x{mm-Gk?CVz3o0Yn", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 2",}, b0, false, false, null, undefined);
 }
 b1.value = 10;
 if ((b1.value === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 3",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 3",}, b0, false, false, null, undefined);
 }
 if (((+b1.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 4",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 4",}, b0, false, false, null, undefined);
 }
 if (((+b1.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 5",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 5",}, b0, false, false, null, undefined);
 }
 for (var a0 = 1; a0 >= 0.5; a0--) {
 if (((+b1.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 6",}, b0, false, false, "HB+_IN}6=K[*ksxKXH0`", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 6",}, b0, false, false, null, undefined);
 }
 if (((+b1.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 7",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 7",}, b0, false, false, null, undefined);
 }
 if (((+b1.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 8",}, b0, false, true, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 8",}, b0, false, true, null, undefined);
 if (hasResumedFromPromise) {hasResumedFromPromise = false;continue;}
 }
 yield;
 }
 b2.value = "010";
 if (((+b2.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 9",}, b0, false, false, "#.`@SBj!g-c0:_q/tMZo", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 9",}, b0, false, false, null, undefined);
 }
 if (((+b2.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 10",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 10",}, b0, false, false, null, undefined);
 }
 if (((+b2.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 11",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 11",}, b0, false, false, null, undefined);
 }
 for (var a1 = 1; a1 >= 0.5; a1--) {
 if (((+b2.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 12",}, b0, false, false, ",Z,~10Qo~j;(+VL+I3q:", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 12",}, b0, false, false, null, undefined);
 }
 if (((+b2.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 13",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 13",}, b0, false, false, null, undefined);
 }
 if (((+b2.value || 0) === 10)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass 14",}, b0, false, true, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass 14",}, b0, false, true, null, undefined);
 if (hasResumedFromPromise) {hasResumedFromPromise = false;continue;}
 }
 yield;
 }
 if ((0 === 1)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, "yO!,nQodLC}uqIc?212+", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null, undefined);
 }
 if ((1 === 0)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, "XzQt!.^A,SV?q0`Ui)wG", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null, undefined);
 }
 if ((0 === 1)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, "rxZqw7cv8g;PDM4B%{`?", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null, undefined);
 }
 if ((" ".toLowerCase() === "0".toLowerCase())) {
-yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null, undefined);
 }
 if (("0".toLowerCase() === " ".toLowerCase())) {
-yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null, undefined);
 }
 if (("".toLowerCase() === "0".toLowerCase())) {
-yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null, undefined);
 }
 if (("0".toLowerCase() === "".toLowerCase())) {
-yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null);
+yield* executeInCompatibilityLayer({"MESSAGE":"fail",}, b0, false, false, null, undefined);
 }
-yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, "df{tf!WhfRwXgQ?SN_dj", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, null, undefined);
 retire(); return;
+retire();
 }; })

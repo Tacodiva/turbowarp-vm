@@ -7,18 +7,19 @@ const b0 = runtime.getOpcodeFunction("sound_setvolumeto");
 const b1 = stage.variables["`jEk@4|i[#Fk?(8x)AV.-my variable"];
 const b2 = runtime.getOpcodeFunction("looks_say");
 return function* genXYZ () {
-yield* executeInCompatibilityLayer({"VOLUME":0,}, b0, false, false, "d", null);
+yield* executeInCompatibilityLayer({"VOLUME":0,}, b0, false, false, null, undefined);
 b1.value = 0;
-yield* executeInCompatibilityLayer({"MESSAGE":"plan 1",}, b2, false, false, "g", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"plan 1",}, b2, false, false, null, undefined);
 yield* thread.procedures["Wno refresh"]();
 yield* thread.procedures["Wruns below with no refresh"]();
 if (compareEqual(b1.value, 0)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b2, false, false, "v", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b2, false, false, null, undefined);
 }
-yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b2, false, false, "f", null);
+yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b2, false, false, null, undefined);
 runtime.stopAll();
 retire(); return;
 retire(); return;
+retire();
 }; })
 
 // Sprite1 no refresh
@@ -34,8 +35,8 @@ while (thread.timer.timeElapsed() < a1) {
 if (isStuck()) yield;
 }
 thread.timer = null;
-yield* executeInCompatibilityLayer({"BEATS":0,}, b0, true, false, "m", null);
-yield* executeInCompatibilityLayer({"DRUM":1,"BEATS":0,}, b1, true, false, "b", null);
+yield* executeInCompatibilityLayer({"BEATS":0,}, b0, true, false, null, undefined);
+yield* executeInCompatibilityLayer({"DRUM":1,"BEATS":0,}, b1, true, false, null, undefined);
 runtime.ext_scratch3_motion._moveSteps(0, target);
 }
 return "";
@@ -61,8 +62,8 @@ while (thread.timer.timeElapsed() < a1) {
 if (isStuck()) yield;
 }
 thread.timer = null;
-yield* executeInCompatibilityLayer({"BEATS":0,}, b0, true, false, "r", null);
-yield* executeInCompatibilityLayer({"DRUM":1,"BEATS":0,}, b1, true, false, "c", null);
+yield* executeInCompatibilityLayer({"BEATS":0,}, b0, true, false, null, undefined);
+yield* executeInCompatibilityLayer({"DRUM":1,"BEATS":0,}, b1, true, false, null, undefined);
 runtime.ext_scratch3_motion._moveSteps(0, target);
 }
 return "";
@@ -77,4 +78,5 @@ b0.value = ((+b0.value || 0) + 1);
 yield;
 }
 retire(); return;
+retire();
 }; })
