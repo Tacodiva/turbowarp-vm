@@ -19,7 +19,6 @@ thread.timer = null;
 yield;
 }
 retire(); return;
-retire();
 }; })
 
 // Sprite1 script
@@ -27,18 +26,17 @@ retire();
 const b0 = runtime.getOpcodeFunction("looks_say");
 const b1 = stage.variables["Go=PJS7BFXYo_qi2S:kQ"];
 return function* genXYZ () {
-yield* executeInCompatibilityLayer({"MESSAGE":"plan 2",}, b0, false, false, null, undefined);
+yield* executeInCompatibilityLayer({"MESSAGE":"plan 2",}, b0, false, false, "o", null);
 b1.value = 0;
 if (compareEqual(thread.procedures["Zinvalid params - reporter"](), 0)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass invalid params reporter",}, b0, false, false, null, undefined);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass invalid params reporter",}, b0, false, false, "L", null);
 }
 if (compareEqual(thread.procedures["Zinvalid params - boolean"](), 0)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass invalid params boolean",}, b0, false, false, null, undefined);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass invalid params boolean",}, b0, false, false, "N", null);
 }
 runtime.stopForTarget(target, thread);
-yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, null, undefined);
+yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, "P", null);
 retire(); return;
-retire();
 }; })
 
 // Sprite1 invalid params - reporter

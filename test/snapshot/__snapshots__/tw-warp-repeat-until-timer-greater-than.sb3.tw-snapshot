@@ -5,11 +5,10 @@
 (function factoryXYZ(thread) { const target = thread.target; const runtime = target.runtime; const stage = runtime.getTargetForStage();
 const b0 = runtime.getOpcodeFunction("looks_say");
 return function* genXYZ () {
-yield* executeInCompatibilityLayer({"MESSAGE":"plan 1",}, b0, false, false, null, undefined);
+yield* executeInCompatibilityLayer({"MESSAGE":"plan 1",}, b0, false, false, "e", null);
 yield* thread.procedures["Wrun without screen refresh"]();
-yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, null, undefined);
+yield* executeInCompatibilityLayer({"MESSAGE":"end",}, b0, false, false, "s", null);
 retire(); return;
-retire();
 }; })
 
 // Sprite1 run without screen refresh
@@ -23,7 +22,7 @@ while (!((runtime.ioDevices.clock.projectTimer() > 0.1) || compareGreaterThan((d
 if (isStuck()) yield;
 }
 if (compareLessThan((daysSince2000() * 86400), b0.value)) {
-yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b1, true, false, null, undefined);
+yield* executeInCompatibilityLayer({"MESSAGE":"pass",}, b1, true, false, "u", null);
 }
 return "";
 }; })
