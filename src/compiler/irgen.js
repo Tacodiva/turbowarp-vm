@@ -459,8 +459,8 @@ class ScriptTreeGenerator {
 
             case 'sensing_coloristouchingcolor':
                 return new IntermediateInput(InputOpcode.SENSING_COLOR_TOUCHING_COLOR, InputType.BOOLEAN, {
-                    target: this.descendInputOfBlock(block, 'COLOR2').toType(InputType.NUMBER),
-                    mask: this.descendInputOfBlock(block, 'COLOR').toType(InputType.NUMBER)
+                    target: this.descendInputOfBlock(block, 'COLOR2'),
+                    mask: this.descendInputOfBlock(block, 'COLOR')
                 });
             case 'sensing_current':
                 switch (block.fields.CURRENTMENU.value.toLowerCase()) {
@@ -868,7 +868,7 @@ class ScriptTreeGenerator {
                 });
             case 'pen_setPenColorToColor':
                 return new IntermediateStackBlock(StackOpcode.PEN_COLOR_SET, {
-                    color: this.descendInputOfBlock(block, 'COLOR').toType(InputType.NUMBER)
+                    color: this.descendInputOfBlock(block, 'COLOR')
                 });
             case 'pen_setPenHueToNumber':
                 return new IntermediateStackBlock(StackOpcode.PEN_COLOR_HUE_SET_LEGACY, {
