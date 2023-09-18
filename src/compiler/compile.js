@@ -4,7 +4,7 @@ const IRGenerator = require('./irgen');
 const { IROptimizer } = require('./iroptimizer');
 const JSGenerator = require('./jsgen');
 
-const compile = thread => {
+const compile = ( /** @type {import("../engine/thread")} */ thread) => {
     const irGenerator = new IRGenerator(thread);
     const ir = irGenerator.generate();
 
@@ -14,7 +14,7 @@ const compile = thread => {
     const procedures = {};
     const target = thread.target;
 
-    const compileScript = script => {
+    const compileScript = (/** @type {import("./intermediate").IntermediateScript} */ script) => {
         if (script.cachedCompileResult) {
             return script.cachedCompileResult;
         }

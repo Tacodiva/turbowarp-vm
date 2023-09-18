@@ -5,8 +5,10 @@ const { StackOpcode, InputOpcode, InputType } = require('./enums.js')
 
 class TypeState {
     constructor() {
-        /** @type {Object.<string, InputType>}*/
+        /** @type {Object.<string, InputType | 0>}*/
         this.variables = {};
+        /** @type {InputType | 0} */
+        this.defaultType = 0;
     }
 
     /**
@@ -21,6 +23,7 @@ class TypeState {
             }
         }
         this.variables = {};
+        this.defaultType = InputType.ANY;
         return modified;
     }
 
@@ -33,14 +36,36 @@ class TypeState {
         for (const varId in this.variables) {
             clone.variables[varId] = this.variables[varId];
         }
+        clone.defaultType = this.defaultType;
         return clone;
     }
 
     /**
      * @param {TypeState} other
+     * @param {(varId: string) => InputType | 0} stateMutator
+     * @returns {boolean}
+     * @private
      */
-    setAll(other) {
-        this.variables = other.variables;
+    mutate(other, stateMutator) {
+        let modified = false;
+        for (const varId in other.variables) {
+            const newValue = stateMutator(varId);
+            if (newValue !== this.variables[varId]) {
+                this.variables[varId] = newValue;
+                modified = modified || true;
+            }
+        }
+
+        for (const varId in this.variables) {
+            if (!other.variables[varId]) {
+                const newValue = stateMutator(varId);
+                if (newValue !== this.variables[varId]) {
+                    this.variables[varId] = newValue;
+                    modified = modified || true;
+                }
+            }
+        }
+        return modified;
     }
 
     /**
@@ -48,22 +73,23 @@ class TypeState {
      * @returns {boolean}
      */
     or(other) {
-        let modified = false;
-        for (const varId in other.variables) {
-            const currentType = this.variables[varId] ?? InputType.ANY;
-            const newType = currentType | other.variables[varId];
-            this.variables[varId] = newType;
-            modified = modified || (currentType !== newType);
-        }
-        for (const varId in this.variables) {
-            if (!other.variables[varId]) {
-                if (this.variables[varId] !== InputType.ANY) {
-                    this.variables[varId] = InputType.ANY;
-                    modified = true;
-                }
-            }
-        }
-        return modified;
+        return this.mutate(other, (varId) => {
+            const thisType = this.variables[varId] ?? this.defaultType;
+            const otherType = other.variables[varId] ?? other.defaultType;
+            return thisType | otherType;
+        });
+    }
+
+    /**
+     * @param {TypeState} other
+     * @returns {boolean}
+     */
+    after(other) {
+        return this.mutate(other, (varId) => {
+            const otherType = other.variables[varId] ?? other.defaultType;
+            if (otherType !== 0) return otherType;
+            return this.variables[varId] ?? this.defaultType;
+        });
     }
 
     /**
@@ -83,7 +109,7 @@ class TypeState {
      * @returns {InputType}
      */
     getVariableType(variable) {
-        return this.variables[variable.id] ?? InputType.ANY;
+        return this.variables[variable.id] ?? (this.defaultType === 0 ? InputType.ANY : this.defaultType);
     }
 }
 
@@ -102,26 +128,29 @@ class IROptimizer {
      * @param {TypeState} state
      * @returns {InputType}
      */
-    analyzeInputBlock(inputBlock, state) {
+    getInputType(inputBlock, state) {
         const inputs = inputBlock.inputs;
 
         switch (inputBlock.opcode) {
             case InputOpcode.VAR_GET:
                 return state.getVariableType(inputs.variable);
 
+            case InputOpcode.ADDON_CALL:
+
+
             case InputOpcode.CAST_NUMBER: {
-                const innerType = this.analyzeInputBlock(inputs.target, state);
+                const innerType = inputs.target.type;
                 if (innerType & InputType.NUMBER) return innerType;
                 return InputType.NUMBER;
             } case InputOpcode.CAST_NUMBER_OR_NAN: {
-                const innerType = this.analyzeInputBlock(inputs.target, state);
+                const innerType = inputs.target;
                 if (innerType & InputType.NUMBER_OR_NAN) return innerType;
                 return InputType.NUMBER_OR_NAN;
             }
 
             case InputOpcode.OP_ADD: {
-                const leftType = this.analyzeInputBlock(inputs.left, state);
-                const rightType = this.analyzeInputBlock(inputs.right, state);
+                const leftType = inputs.left.type;
+                const rightType = inputs.right.type;
 
                 let resultType = 0;
 
@@ -173,7 +202,6 @@ class IROptimizer {
                 }
                 if (canBeZero()) resultType |= InputType.NUMBER_ZERO;
 
-                // TDTODO Is this necessary?
                 function canBeNegZero() {
                     // -0 + -0 = -0
                     if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
@@ -184,8 +212,8 @@ class IROptimizer {
             }
 
             case InputOpcode.OP_SUBTRACT: {
-                const leftType = this.analyzeInputBlock(inputs.left, state);
-                const rightType = this.analyzeInputBlock(inputs.right, state);
+                const leftType = inputs.left.type;
+                const rightType = inputs.right.type;
 
                 let resultType = 0;
 
@@ -247,16 +275,16 @@ class IROptimizer {
             }
 
             case InputOpcode.OP_MULTIPLY: {
-                const leftType = this.analyzeInputBlock(inputs.left, state);
-                const rightType = this.analyzeInputBlock(inputs.right, state);
+                const leftType = inputs.left.type;
+                const rightType = inputs.right.type;
 
                 let resultType = 0;
 
                 function canBeNaN() {
-                    // Infinity * 0 = NaN
-                    if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_ANY_ZERO)) return true;
-                    // 0 * Infinity = NaN
-                    if ((leftType & InputType.NUMBER_ANY_ZERO) && (rightType & InputType.NUMBER_POS_INF)) return true;
+                    // (-)Infinity * 0 = NaN
+                    if ((leftType & InputType.NUMBER_INF) && (rightType & InputType.NUMBER_ANY_ZERO)) return true;
+                    // 0 * (-)Infinity = NaN
+                    if ((leftType & InputType.NUMBER_ANY_ZERO) && (rightType & InputType.NUMBER_INF)) return true;
                 }
                 if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
 
@@ -291,6 +319,10 @@ class IROptimizer {
                 }
 
                 function canBeZero() {
+                    // 0 * 0 = 0
+                    if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_ZERO)) return true;
+                    // -0 * -0 = 0
+                    if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
                     // 0 * POS_REAL = 0
                     if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_POS_REAL)) return true;
                     // -0 * NEG_REAL = 0
@@ -307,6 +339,10 @@ class IROptimizer {
                 if (canBeZero()) resultType |= InputType.NUMBER_ZERO;
 
                 function canBeNegZero() {
+                    // 0 * -0 = 0
+                    if ((leftType & InputType.NUMBER_ZERO) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
+                    // -0 * 0 = 0
+                    if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_ZERO)) return true;
                     // -0 * POS_REAL = -0
                     if ((leftType & InputType.NUMBER_NEG_ZERO) && (rightType & InputType.NUMBER_POS_REAL)) return true;
                     // 0 * NEG_REAL = -0
@@ -326,16 +362,18 @@ class IROptimizer {
             }
 
             case InputOpcode.OP_DIVIDE: {
-                const leftType = this.analyzeInputBlock(inputs.left, state);
-                const rightType = this.analyzeInputBlock(inputs.right, state);
+                const leftType = inputs.left.type;
+                const rightType = inputs.right.type;
 
                 let resultType = 0;
 
                 function canBeNaN() {
                     // REAL / 0 = NaN
                     if ((leftType & InputType.NUMBER_REAL) && (rightType & InputType.NUMBER_ZERO)) return true;
-                    // Infinity / Infinity = NaN
+                    // (-)Infinity / (-)Infinity = NaN
                     if ((leftType & InputType.NUMBER_INF) && (rightType & InputType.NUMBER_INF)) return true;
+                    // (-)0 / NaN = NaN
+                    if ((leftType & InputType.NUMBER_ANY_ZERO) && (rightType & InputType.NUMBER_NAN)) return true;
                 }
                 if (canBeNaN()) resultType |= InputType.NUMBER_NAN;
 
@@ -347,19 +385,27 @@ class IROptimizer {
                 }
                 if (canBePos()) resultType |= InputType.NUMBER_POS;
 
-                // -Infinity / 0 = -Infinity
-                if ((leftType & InputType.NUMBER_NEG_INF) && (rightType & InputType.NUMBER_ZERO))
-                    resultType |= InputType.NUMBER_NEG_INF;
-                // Infinity / -0 = -Infinity
-                if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_NEG_ZERO))
-                    resultType |= InputType.NUMBER_NEG_INF;
+                function canBeNegInfinity() {
+                    // -Infinity / 0 = -Infinity
+                    if ((leftType & InputType.NUMBER_NEG_INF) && (rightType & InputType.NUMBER_ZERO)) return true;
+                    // Infinity / -0 = -Infinity
+                    if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
+                    // NEG_REAL / NaN = -Infinity
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_NAN)) return true;
+                    // NEG_REAL / NUMBER_OR_NAN ~= -Infinity
+                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_OR_NAN)) return true;
+                }
+                if (canBeNegInfinity()) resultType |= InputType.NUMBER_NEG_INF;
 
-                // Infinity / 0 = Infinity
-                if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_ZERO))
-                    resultType |= InputType.NUMBER_POS_INF;
-                // -Infinity / -0 = Infinity
-                if ((leftType & InputType.NUMBER_NEG_INF) && (rightType & InputType.NUMBER_NEG_ZERO))
-                    resultType |= InputType.NUMBER_POS_INF;
+                function canBeInfinity() {
+                    // Infinity / 0 = Infinity
+                    if ((leftType & InputType.NUMBER_POS_INF) && (rightType & InputType.NUMBER_ZERO)) return true;
+                    // -Infinity / -0 = Infinity
+                    if ((leftType & InputType.NUMBER_NEG_INF) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
+                    // POS_REAL / NUMBER_OR_NAN ~= Infinity
+                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_OR_NAN)) return true;
+                }
+                if (canBeInfinity()) resultType |= InputType.NUMBER_POS_INF;
 
                 function canBeNeg() {
                     // POS / NEG = NEG
@@ -378,6 +424,10 @@ class IROptimizer {
                     if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_POS_REAL)) return true;
                     // Rounding errors like -1e-323 / -10 = 0
                     if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                    // NUMBER_POS / Infinity = 0
+                    if ((leftType & InputType.NUMBER_POS) && (rightType & InputType.NUMBER_POS_INF)) return true;
+                    // NUMBER_NEG / -Infinity = 0
+                    if ((leftType & InputType.NUMBER_NEG) && (rightType & InputType.NUMBER_NEG_INF)) return true;
                 }
                 if (canBeZero()) resultType |= InputType.NUMBER_ZERO;
 
@@ -390,41 +440,117 @@ class IROptimizer {
                     if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_POS_REAL)) return true;
                     // Rounding errors like 1e-323 / -10 = -0
                     if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                    // NUMBER_POS / -Infinity = -0
+                    if ((leftType & InputType.NUMBER_POS) && (rightType & InputType.NUMBER_NEG_INF)) return true;
+                    // NUMBER_NEG / Infinity = -0
+                    if ((leftType & InputType.NUMBER_NEG) && (rightType & InputType.NUMBER_POS_INF)) return true;
                 }
                 if (canBeNegZero()) resultType |= InputType.NUMBER_NEG_ZERO;
 
                 return resultType;
             }
         }
-
         return inputBlock.type;
+    }
+
+    /**
+     * @param {IntermediateInput} inputBlock
+     * @param {TypeState} state
+     * @returns {boolean}
+     * @private
+     */
+    analyzeInputBlock(inputBlock, state) {
+        const inputs = inputBlock.inputs;
+
+        let modified = this.analyzeInputs(inputs, state);
+        let newType = this.getInputType(inputBlock, state);
+
+        modified = modified || newType !== inputBlock.type;
+        inputBlock.type = newType;
+
+        switch (inputBlock.opcode) {
+            case InputOpcode.ADDON_CALL:
+                modified = state.clear() || modified;
+                break;
+            case InputOpcode.PROCEDURE_CALL:
+                modified = this.analyzeInputs(inputs.inputs, state) || modified;
+                const script = this.ir.procedures[inputs.variant];
+
+                if (!script || !script.cachedAnalysisEndState) {
+                    modified = state.clear() || modified;
+                } else {
+                    modified = state.after(script.cachedAnalysisEndState) || modified;
+                }
+                break;
+        }
+
+        return modified;
+    }
+
+    /**
+     * @param {Object<any, any>} inputs
+     * @param {TypeState} state
+     * @returns {boolean} modified
+     */
+    analyzeInputs(inputs, state) {
+        let modified = false;
+        for (const inputName in inputs) {
+            const input = inputs[inputName];
+            if (input instanceof IntermediateInput) {
+                modified = this.analyzeInputBlock(input, state) || modified;
+            }
+        }
+        return modified;
     }
 
     /**
      * @param {IntermediateStackBlock} stackBlock
      * @param {TypeState} state
      * @returns {boolean}
+     * @private
      */
     analyzeStackBlock(stackBlock, state) {
         const inputs = stackBlock.inputs;
+        let modified = false;
+
+        if (stackBlock.ignoreState)
+            state = state.clone();
+
+        modified = modified || this.analyzeInputs(inputs, state);
 
         switch (stackBlock.opcode) {
             case StackOpcode.VAR_SET:
-                return state.setVariableType(inputs.variable, this.analyzeInputBlock(inputs.value, state));
+                return state.setVariableType(inputs.variable, inputs.value.type) || modified;
             case StackOpcode.CONTROL_WHILE:
             case StackOpcode.CONTROL_FOR:
             case StackOpcode.CONTROL_REPEAT:
-                return this.analyzeLoopedStack(inputs.do, state, stackBlock);
+                return this.analyzeLoopedStack(inputs.do, state, stackBlock) || modified;
             case StackOpcode.CONTROL_IF_ELSE: {
                 const trueState = state.clone();
-                this.analyzeStack(inputs.whenTrue, trueState);
-                let modified = this.analyzeStack(inputs.whenFalse, state);
+                modified = this.analyzeStack(inputs.whenTrue, trueState) || modified;
+                modified = this.analyzeStack(inputs.whenFalse, state) || modified;
                 modified = state.or(trueState) || modified;
                 return modified;
-            } case StackOpcode.PROCEDURE_CALL:
-                // TDTODO If we've analyzed the procedure we can grab it's type info
-                // instead of resetting everything.
-                return state.clear();
+            }
+            case StackOpcode.PROCEDURE_CALL: {
+                modified = this.analyzeInputs(inputs.inputs, state) || modified;
+                const script = this.ir.procedures[inputs.variant];
+
+                if (!script || !script.cachedAnalysisEndState) {
+                    return state.clear() || modified;
+                } else {
+                    return state.after(script.cachedAnalysisEndState) || modified;
+                }
+            }
+            case StackOpcode.COMPATIBILITY_LAYER: {
+                this.analyzeInputs(inputs.inputs, state);
+                for (const substack of inputs.substacks) {
+                    const newState = state.clone();
+                    modified = this.analyzeStack(substack, newState) || modified;
+                    modified = state.or(newState) || modified;
+                }
+                break;
+            }
         }
 
         return false;
@@ -434,18 +560,22 @@ class IROptimizer {
      * @param {IntermediateStack?} stack
      * @param {TypeState} state
      * @returns {boolean}
+     * @private
      */
     analyzeStack(stack, state) {
         if (!stack) return false;
         let modified = false;
         for (const stackBlock of stack.blocks) {
             let stateChanged = this.analyzeStackBlock(stackBlock, state);
-            if (stackBlock.yields) stateChanged = stateChanged || state.clear();
 
-            if (stateChanged) {
-                if (stackBlock.exitState) stackBlock.exitState.or(state);
-                else stackBlock.exitState = state.clone();
-                modified = true;
+            if (!stackBlock.ignoreState) {
+                if (stackBlock.yields) stateChanged = stateChanged || state.clear();
+
+                if (stateChanged) {
+                    if (stackBlock.exitState) stackBlock.exitState.or(state);
+                    else stackBlock.exitState = state.clone();
+                    modified = true;
+                }
             }
         }
         return modified;
@@ -456,6 +586,7 @@ class IROptimizer {
      * @param {TypeState} state
      * @param {IntermediateStackBlock} block
      * @returns {boolean}
+     * @private
      */
     analyzeLoopedStack(stack, state, block) {
         if (block.yields) {
@@ -480,6 +611,7 @@ class IROptimizer {
      * @param {IntermediateInput} input
      * @param {TypeState} state
      * @returns {IntermediateInput}
+     * @private
      */
     optimizeInput(input, state) {
         for (const inputKey in input.inputs) {
@@ -490,25 +622,25 @@ class IROptimizer {
 
         switch (input.opcode) {
             case InputOpcode.CAST_NUMBER: {
-                const targetType = this.analyzeInputBlock(input.inputs.target, state);
+                const targetType = input.inputs.target.type;
                 if ((targetType & InputType.NUMBER) === targetType)
                     return input.inputs.target;
                 return input;
             } case InputOpcode.CAST_NUMBER_OR_NAN: {
-                const targetType = this.analyzeInputBlock(input.inputs.target, state);
+                const targetType = input.inputs.target.type;
                 if ((targetType & InputType.NUMBER_OR_NAN) === targetType)
                     return input.inputs.target;
                 return input;
             }
         }
 
-        input.type = this.analyzeInputBlock(input, state);
         return input;
     }
 
     /**
      * @param {IntermediateStack?} stack
-     * @param {TypeState} state
+     * @param {TypeState} state The state of the project before this stack is run.
+     * @private
      */
     optimizeStack(stack, state) {
         if (!stack) return;
@@ -528,34 +660,30 @@ class IROptimizer {
     }
 
     /**
-     *
-     * @param {IntermediateScript} procedure
-     * @param {string[]} optimized
+     * @param {IntermediateScript} script
+     * @param {Set<string>} alreadyOptimized
+     * @private
      */
-    optimizeProcedure(procedure, optimized) {
-        if (optimized.includes(procedure.procedureCode)) {
-            return;
+    optimizeScript(script, alreadyOptimized) {
+        if (script.isProcedure) {
+            if (alreadyOptimized.has(script.procedureCode)) {
+                return;
+            }
+            alreadyOptimized.add(script.procedureCode);
         }
 
-        optimized.push(procedure.procedureCode);
-
-        for (const procVariant of procedure.dependedProcedures) {
-            this.optimizeProcedure(this.ir.procedures[procVariant], optimized);
+        for (const procVariant of script.dependedProcedures) {
+            this.optimizeScript(this.ir.procedures[procVariant], alreadyOptimized);
         }
 
-        const state = new TypeState();
-        this.analyzeStack(procedure.stack, state);
-        this.optimizeStack(procedure.stack, state);
+        script.cachedAnalysisEndState = new TypeState();
+        this.analyzeStack(script.stack, script.cachedAnalysisEndState);
+
+        this.optimizeStack(script.stack, new TypeState());
     }
 
     optimize() {
-        const optimized = [];
-        for (const procVariant of this.ir.entry.dependedProcedures)
-            this.optimizeProcedure(this.ir.procedures[procVariant], optimized);
-
-        const state = new TypeState();
-        this.analyzeStack(this.ir.entry.stack, state);
-        this.optimizeStack(this.ir.entry.stack, state);
+        this.optimizeScript(this.ir.entry, new Set());
     }
 }
 

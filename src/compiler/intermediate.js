@@ -13,8 +13,8 @@ const log = require('../util/log');
  */
 class IntermediateStackBlock {
     /**
-     * @param {import("./enums").StackOpcode} opcode 
-     * @param {Object} inputs 
+     * @param {import("./enums").StackOpcode} opcode
+     * @param {Object} inputs
      * @param {boolean} yields
      */
     constructor(opcode, inputs = {}, yields = false) {
@@ -26,7 +26,7 @@ class IntermediateStackBlock {
 
         /**
          * The inputs of this block.
-         * @type {Object} 
+         * @type {Object}
          */
         this.inputs = inputs;
 
@@ -35,6 +35,12 @@ class IntermediateStackBlock {
          * @type {boolean}
          */
         this.yields = yields;
+
+        /**
+         * Should state changes made by this stack block be ignored? Used for testing.
+         * @type {boolean}
+         */
+        this.ignoreState = false;
 
         /**
          * @type {import("./iroptimizer").TypeState?}
@@ -66,9 +72,9 @@ class IntermediateInput {
     }
 
     /**
-     * @param {InputOpcode} opcode 
+     * @param {InputOpcode} opcode
      * @param {InputType} type
-     * @param {Object} inputs 
+     * @param {Object} inputs
      * @param {boolean} yields
      */
     constructor(opcode, type, inputs = {}, yields = false) {
@@ -107,7 +113,7 @@ class IntermediateInput {
 
     /**
      * Is the type of this input guaranteed to always be the type at runtime.
-     * @param {InputType} type 
+     * @param {InputType} type
      * @returns {boolean}
      */
     isAlwaysType(type) {
@@ -116,8 +122,8 @@ class IntermediateInput {
 
     /**
      * Is it possible for this input to be the type at runtime.
-     * @param {InputType} type 
-     * @returns 
+     * @param {InputType} type
+     * @returns
      */
     isSometimesType(type) {
         return (this.type & type) !== 0;
@@ -127,7 +133,7 @@ class IntermediateInput {
      * Converts this input to a target type.
      * If this input is a constant the conversion is performed now, at compile time.
      * If the input changes, the conversion is performed at runtime.
-     * @param {InputType} targetType 
+     * @param {InputType} targetType
      * @returns {IntermediateInput} An input with the new type.
      */
     toType(targetType) {
@@ -278,10 +284,17 @@ class IntermediateScript {
         this.cachedCompileResult = null;
 
         /**
+         * Cached result of analysing this script.
+         * @type {import("./iroptimizer").TypeState|null}
+         */
+        this.cachedAnalysisEndState = null;
+
+        /**
          * Whether the top block of this script is an executable hat.
          * @type {boolean}
          */
         this.executableHat = false;
+
     }
 }
 
@@ -290,9 +303,9 @@ class IntermediateScript {
  */
 class IntermediateRepresentation {
     /**
-     * 
-     * @param {IntermediateScript} entry 
-     * @param {Object.<string, IntermediateScript>} procedures 
+     *
+     * @param {IntermediateScript} entry
+     * @param {Object.<string, IntermediateScript>} procedures
      */
     constructor(entry, procedures) {
         /**
