@@ -544,6 +544,9 @@ class ScriptTreeGenerator {
                 // This menu is special compared to other menus -- it actually has an opcode function.
                 return this.createConstantInput(block.fields.SOUND_MENU.value);
 
+            case 'control_get_counter':
+                return new IntermediateInput(InputOpcode.CONTROL_COUNTER, InputType.NUMBER_POS_INT | InputType.NUMBER_ZERO);
+
             case 'tw_getLastKeyPressed':
                 return new IntermediateInput(InputOpcode.TW_KEY_LAST_PRESSED, InputType.STRING);
 
@@ -666,6 +669,10 @@ class ScriptTreeGenerator {
                     // We should consider analyzing this like we do for control_repeat_until
                     warpTimer: false
                 }, this.analyzeLoop());
+            case 'control_clear_counter':
+                return new IntermediateStackBlock(StackOpcode.CONTROL_CLEAR_COUNTER);
+            case 'control_incr_counter':
+                return new IntermediateStackBlock(StackOpcode.CONTORL_INCR_COUNTER);
 
             case 'data_addtolist':
                 return new IntermediateStackBlock(StackOpcode.LIST_ADD, {
@@ -1102,7 +1109,7 @@ class ScriptTreeGenerator {
         const variable = block.fields[fieldName];
         const id = variable.id;
 
-        if (Object.prototype.hasOwnProperty.call(this.variableCache, id)) {
+        if (this.variableCache.hasOwnProperty(id)) {
             return this.variableCache[id];
         }
 
@@ -1123,20 +1130,20 @@ class ScriptTreeGenerator {
         const stage = this.stage;
 
         // Look for by ID in target...
-        if (Object.prototype.hasOwnProperty.call(target.variables, id)) {
+        if (target.variables.hasOwnProperty(id)) {
             return createVariableData('target', target.variables[id]);
         }
 
         // Look for by ID in stage...
         if (!target.isStage) {
-            if (stage && Object.prototype.hasOwnProperty.call(stage.variables, id)) {
+            if (stage && stage.variables.hasOwnProperty(id)) {
                 return createVariableData('stage', stage.variables[id]);
             }
         }
 
         // Look for by name and type in target...
         for (const varId in target.variables) {
-            if (Object.prototype.hasOwnProperty.call(target.variables, varId)) {
+            if (target.variables.hasOwnProperty(varId)) {
                 const currVar = target.variables[varId];
                 if (currVar.name === name && currVar.type === type) {
                     return createVariableData('target', currVar);
@@ -1147,7 +1154,7 @@ class ScriptTreeGenerator {
         // Look for by name and type in stage...
         if (!target.isStage && stage) {
             for (const varId in stage.variables) {
-                if (Object.prototype.hasOwnProperty.call(stage.variables, varId)) {
+                if (stage.variables.hasOwnProperty(varId)) {
                     const currVar = stage.variables[varId];
                     if (currVar.name === name && currVar.type === type) {
                         return createVariableData('stage', currVar);
@@ -1165,104 +1172,13 @@ class ScriptTreeGenerator {
             // This is necessary because the script cache is shared between clones.
             // sprite.clones has all instances of this sprite including the original and all clones
             for (const clone of target.sprite.clones) {
-                if (!Object.prototype.hasOwnProperty.call(clone.variables, id)) {
+                if (!clone.variables.hasOwnProperty(id)) {
                     clone.variables[id] = new Variable(id, name, type, false);
                 }
             }
         }
 
         return createVariableData('target', newVariable);
-    }
-
-    descendProcedure (block) {
-        const procedureCode = block.mutation.proccode;
-        const paramNamesIdsAndDefaults = this.blocks.getProcedureParamNamesIdsAndDefaults(procedureCode);
-        if (paramNamesIdsAndDefaults === null) {
-            return {
-                kind: 'noop'
-            };
-        }
-
-        const [paramNames, paramIds, paramDefaults] = paramNamesIdsAndDefaults;
-
-        const addonBlock = this.runtime.getAddonBlock(procedureCode);
-        if (addonBlock) {
-            this.script.yields = true;
-            const args = {};
-            for (let i = 0; i < paramIds.length; i++) {
-                let value;
-                if (block.inputs[paramIds[i]] && block.inputs[paramIds[i]].block) {
-                    value = this.descendInputOfBlock(block, paramIds[i]);
-                } else {
-                    value = {
-                        kind: 'constant',
-                        value: paramDefaults[i]
-                    };
-                }
-                args[paramNames[i]] = value;
-            }
-            return {
-                kind: 'addons.call',
-                code: procedureCode,
-                arguments: args,
-                blockId: block.id
-            };
-        }
-
-        const definitionId = this.blocks.getProcedureDefinition(procedureCode);
-        const definitionBlock = this.blocks.getBlock(definitionId);
-        if (!definitionBlock) {
-            return {
-                kind: 'noop'
-            };
-        }
-        const innerDefinition = this.blocks.getBlock(definitionBlock.inputs.custom_block.block);
-
-        let isWarp = this.script.isWarp;
-        if (!isWarp) {
-            if (innerDefinition && innerDefinition.mutation) {
-                const warp = innerDefinition.mutation.warp;
-                if (typeof warp === 'boolean') {
-                    isWarp = warp;
-                } else if (typeof warp === 'string') {
-                    isWarp = JSON.parse(warp);
-                }
-            }
-        }
-
-        const variant = generateProcedureVariant(procedureCode, isWarp);
-
-        if (!this.script.dependedProcedures.includes(variant)) {
-            this.script.dependedProcedures.push(variant);
-        }
-
-        // Non-warp direct recursion yields.
-        if (!this.script.isWarp) {
-            if (procedureCode === this.script.procedureCode) {
-                this.script.yields = true;
-            }
-        }
-
-        const args = [];
-        for (let i = 0; i < paramIds.length; i++) {
-            let value;
-            if (block.inputs[paramIds[i]] && block.inputs[paramIds[i]].block) {
-                value = this.descendInputOfBlock(block, paramIds[i]);
-            } else {
-                value = {
-                    kind: 'constant',
-                    value: paramDefaults[i]
-                };
-            }
-            args.push(value);
-        }
-
-        return {
-            kind: 'procedures.call',
-            code: procedureCode,
-            variant,
-            arguments: args
-        };
     }
 
     /**
@@ -1273,10 +1189,10 @@ class ScriptTreeGenerator {
      */
     descendCompatLayerInput(block) {
         const inputs = {};
+        const fields = {};
         for (const name of Object.keys(block.inputs)) {
             inputs[name] = this.descendInputOfBlock(block, name, true);
         }
-        const fields = {};
         for (const name of Object.keys(block.fields)) {
             fields[name] = block.fields[name].value;
         }
@@ -1361,72 +1277,6 @@ class ScriptTreeGenerator {
             // Only the first 'tw' line is parsed.
             break;
         }
-    }
-
-    descendVisualReport (block) {
-        if (!this.thread.stackClick || block.next) {
-            return null;
-        }
-        try {
-            return {
-                kind: 'visualReport',
-                input: this.descendInput(block)
-            };
-        } catch (e) {
-            return null;
-        }
-    }
-
-    /**
-     * @param {Block} hatBlock
-     */
-    walkHat (hatBlock) {
-        const nextBlock = hatBlock.next;
-        const opcode = hatBlock.opcode;
-        const hatInfo = this.runtime._hats[opcode];
-
-        if (this.thread.stackClick) {
-            // We still need to treat the hat as a normal block (so executableHat should be false) for
-            // interpreter parity, but the reuslt is ignored.
-            const opcodeFunction = this.runtime.getOpcodeFunction(opcode);
-            if (opcodeFunction) {
-                return [
-                    this.descendCompatLayer(hatBlock),
-                    ...this.walkStack(nextBlock)
-                ];
-            }
-            return this.walkStack(nextBlock);
-        }
-
-        if (hatInfo.edgeActivated) {
-            // Edge-activated HAT
-            this.script.yields = true;
-            this.script.executableHat = true;
-            return [
-                {
-                    kind: 'hat.edge',
-                    id: hatBlock.id,
-                    condition: this.descendCompatLayer(hatBlock)
-                },
-                ...this.walkStack(nextBlock)
-            ];
-        }
-
-        const opcodeFunction = this.runtime.getOpcodeFunction(opcode);
-        if (opcodeFunction) {
-            // Predicate-based HAT
-            this.script.yields = true;
-            this.script.executableHat = true;
-            return [
-                {
-                    kind: 'hat.predicate',
-                    condition: this.descendCompatLayer(hatBlock)
-                },
-                ...this.walkStack(nextBlock)
-            ];
-        }
-
-        return this.walkStack(nextBlock);
     }
 
     /**
@@ -1541,7 +1391,7 @@ class IRGenerator {
 
     addProcedureDependencies(dependencies) {
         for (const procedureVariant of dependencies) {
-            if (Object.prototype.hasOwnProperty.call(this.procedures, procedureVariant)) {
+            if (this.procedures.hasOwnProperty(procedureVariant)) {
                 continue;
             }
             if (this.compilingProcedures.has(procedureVariant)) {

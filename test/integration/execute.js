@@ -81,8 +81,12 @@ fs.readdirSync(executeDir)
                     t.fail(reason);
                 },
                 plan (count) {
-                    didPlan = true;
-                    t.plan(Number(count));
+                    if (didPlan) {
+                        t.fail("Must plan exactly once.");
+                    } else {
+                        didPlan = true;
+                        t.plan(Number(count));
+                    }
                 },
                 end () {
                     didEnd = true;

@@ -461,6 +461,9 @@ class JSGenerator {
             case InputOpcode.SENSING_TIMER_GET:
                 return 'runtime.ioDevices.clock.projectTimer()';
 
+            case InputOpcode.CONTROL_COUNTER:
+                return 'runtime.ext_scratch3_control._counter';
+
             case InputOpcode.TW_KEY_LAST_PRESSED:
                 return 'runtime.ioDevices.keyboard.getLastKeyPressed()';
 
@@ -621,6 +624,12 @@ class JSGenerator {
                     this.yieldLoop();
                 }
                 this.source += `}\n`;
+                break;
+            case StackOpcode.CONTROL_CLEAR_COUNTER:
+                this.source += 'runtime.ext_scratch3_control._counter = 0;\n';
+                break;
+            case StackOpcode.CONTORL_INCR_COUNTER:
+                this.source += 'runtime.ext_scratch3_control._counter++;\n';
                 break;
 
             case StackOpcode.EVENT_BROADCAST:

@@ -21,7 +21,7 @@
 const InputType = {
     /** The value Infinity */
     NUMBER_POS_INF: 0x001,
-    /** Any natrual number */
+    /** Any natural number */
     NUMBER_POS_INT: 0x002,
     /** Any positive fractional number, excluding integers. */
     NUMBER_POS_FRACT: 0x004,
@@ -65,41 +65,13 @@ const InputType = {
     /** Any number, excluding NaN. Equal to NUMBER_REAL | NUMBER_INF */
     NUMBER: 0x0FF,
     /** Any number, including NaN. Equal to NUMBER | NUMBER_NAN */
-<<<<<<< HEAD
-    NUMBER_OR_NAN: 0x03F,
-    /** Anything that can be interperated as a number. Equal to NUMBER | STRING_NUM | BOOLEAN */
-    NUMBER_INTERPRETABLE: 0x15F,
-
-=======
     NUMBER_OR_NAN: 0x1FF,
     /** Anything that can be interperated as a number. Equal to NUMBER | STRING_NUM | BOOLEAN */
     NUMBER_INTERPRETABLE: 0x12FF,
-<<<<<<< HEAD
-    
->>>>>>> 2087b0e2 (Teach the compiler what an integer is)
-=======
 
->>>>>>> a620ae88 (Merge "Fix compiler's hat implementation")
     /** Any string which as a non-NaN neumeric interpretation, excluding ''.  */
     STRING_NUM: 0x200,
     /** Any string which has no non-NaN neumeric interpretation, including ''. */
-<<<<<<< HEAD
-    STRING_NAN: 0x080,
-    /** One of the strings 'true' or 'false'. */
-    STRING_BOOLEAN: 0x200,
-
-    /** Any string. Equal to STRING_NUM | STRING_NAN */
-    STRING: 0x2C0,
-
-    /** Any boolean. */
-    BOOLEAN: 0x100,
-    /** Any input that can be interperated as a boolean. Equal to BOOLEAN | STRING_BOOLEAN */
-    BOOLEAN_INTERPRETABLE: 0x300,
-
-
-    /** Any type. Equal to NUMBER_OR_NAN | STRING | BOOLEAN */
-    ANY: 0x3FF
-=======
     STRING_NAN: 0x400,
     /** Either of the strings 'true' or 'false'. */
     STRING_BOOLEAN: 0x800,
@@ -114,7 +86,6 @@ const InputType = {
 
     /** Any type. Equal to NUMBER_OR_NAN | STRING | BOOLEAN */
     ANY: 0x1FFF
->>>>>>> 2087b0e2 (Teach the compiler what an integer is)
 };
 
 /**
@@ -144,6 +115,8 @@ const StackOpcode = {
     CONTROL_STOP_SCRIPT: "control.stopScript",
     CONTROL_WAIT: "control.wait",
     CONTROL_WAIT_UNTIL: "control.waitUntil",
+    CONTROL_CLEAR_COUNTER: "control.counterClear",
+    CONTORL_INCR_COUNTER: "control.counterIncr",
 
     LIST_ADD: "list.add",
     LIST_INSERT: "list.instert",
@@ -309,6 +282,8 @@ const InputOpcode = {
     PROCEDURE_CALL: "procedures.call",
     PROCEDURE_ARG_STRING_NUMBER: "args.stringNumber",
     PROCEDURE_ARG_BOOLEAN: "args.boolean",
+
+    CONTROL_COUNTER: "control.counter",
 
     TW_KEY_LAST_PRESSED: "tw.lastKeyPressed"
 };
