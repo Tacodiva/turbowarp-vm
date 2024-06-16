@@ -575,7 +575,7 @@ class IROptimizer {
             let stateChanged = this.analyzeStackBlock(stackBlock, state);
 
             if (!stackBlock.ignoreState) {
-                if (stackBlock.yields && !this.ignoreYields) stateChanged = stateChanged || state.clear();
+                if (stackBlock.yields && !this.ignoreYields) stateChanged = state.clear() || stateChanged;
 
                 if (stateChanged) {
                     if (stackBlock.exitState) stackBlock.exitState.or(state);
@@ -610,7 +610,6 @@ class IROptimizer {
         } while (keepLooping);
         block.entryState = state.clone();
         return modified;
-        
     }
 
     /**
