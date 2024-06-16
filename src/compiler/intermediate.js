@@ -1,7 +1,7 @@
 // @ts-check
 
 const Cast = require('../util/cast');
-const { InputOpcode, InputType } = require('./enums.js')
+const {InputOpcode, InputType} = require('./enums.js');
 const log = require('../util/log');
 
 /**
@@ -17,7 +17,7 @@ class IntermediateStackBlock {
      * @param {Object} inputs
      * @param {boolean} yields
      */
-    constructor(opcode, inputs = {}, yields = false) {
+    constructor (opcode, inputs = {}, yields = false) {
         /**
          * The type of the stackable block.
          * @type {import("./enums").StackOpcode}
@@ -60,8 +60,8 @@ class IntermediateStackBlock {
  */
 class IntermediateInput {
 
-    static getNumberInputType(number) {
-        if (typeof number !== "number") throw new Error("Expected a number.");
+    static getNumberInputType (number) {
+        if (typeof number !== 'number') throw new Error('Expected a number.');
         if (number === Infinity) return InputType.NUMBER_POS_INF;
         if (number === -Infinity) return InputType.NUMBER_NEG_INF;
         if (number < 0) return Number.isInteger(number) ? InputType.NUMBER_NEG_INT : InputType.NUMBER_NEG_FRACT;
@@ -77,7 +77,7 @@ class IntermediateInput {
      * @param {Object} inputs
      * @param {boolean} yields
      */
-    constructor(opcode, type, inputs = {}, yields = false) {
+    constructor (opcode, type, inputs = {}, yields = false) {
         /**
          * @type {InputOpcode}
          */
@@ -104,10 +104,10 @@ class IntermediateInput {
      * @param {*} value The value
      * @returns {boolean}
      */
-    isConstant(value) {
+    isConstant (value) {
         if (this.opcode !== InputOpcode.CONSTANT) return false;
-        var equal = this.inputs.value === value;
-        if (!equal && typeof value === "number") equal = (+this.inputs.value) === value;
+        let equal = this.inputs.value === value;
+        if (!equal && typeof value === 'number') equal = (+this.inputs.value) === value;
         return equal;
     }
 
@@ -116,7 +116,7 @@ class IntermediateInput {
      * @param {InputType} type
      * @returns {boolean}
      */
-    isAlwaysType(type) {
+    isAlwaysType (type) {
         return (this.type & type) === this.type;
     }
 
@@ -125,7 +125,7 @@ class IntermediateInput {
      * @param {InputType} type
      * @returns
      */
-    isSometimesType(type) {
+    isSometimesType (type) {
         return (this.type & type) !== 0;
     }
 
@@ -136,27 +136,27 @@ class IntermediateInput {
      * @param {InputType} targetType
      * @returns {IntermediateInput} An input with the new type.
      */
-    toType(targetType) {
+    toType (targetType) {
         let castOpcode;
         switch (targetType) {
-            case InputType.BOOLEAN:
-                castOpcode = InputOpcode.CAST_BOOLEAN;
-                break;
-            case InputType.NUMBER:
-                castOpcode = InputOpcode.CAST_NUMBER;
-                break;
-            case InputType.NUMBER_INDEX:
-                castOpcode = InputOpcode.CAST_NUMBER_INDEX;
-                break;
-            case InputType.NUMBER_OR_NAN:
-                castOpcode = InputOpcode.CAST_NUMBER_OR_NAN;
-                break;
-            case InputType.STRING:
-                castOpcode = InputOpcode.CAST_STRING;
-                break;
-            default:
-                log.warn(`Cannot cast to type: ${targetType}`, this);
-                throw new Error(`Cannot cast to type: ${targetType}`);
+        case InputType.BOOLEAN:
+            castOpcode = InputOpcode.CAST_BOOLEAN;
+            break;
+        case InputType.NUMBER:
+            castOpcode = InputOpcode.CAST_NUMBER;
+            break;
+        case InputType.NUMBER_INDEX:
+            castOpcode = InputOpcode.CAST_NUMBER_INDEX;
+            break;
+        case InputType.NUMBER_OR_NAN:
+            castOpcode = InputOpcode.CAST_NUMBER_OR_NAN;
+            break;
+        case InputType.STRING:
+            castOpcode = InputOpcode.CAST_STRING;
+            break;
+        default:
+            log.warn(`Cannot cast to type: ${targetType}`, this);
+            throw new Error(`Cannot cast to type: ${targetType}`);
         }
 
         if (this.isAlwaysType(targetType)) return this;
@@ -164,40 +164,40 @@ class IntermediateInput {
         if (this.opcode === InputOpcode.CONSTANT) {
             // If we are a constant, we can do the cast here at compile time
             switch (castOpcode) {
-                case InputOpcode.CAST_BOOLEAN:
-                    this.inputs.value = Cast.toBoolean(this.inputs.value);
-                    this.type = InputType.BOOLEAN;
-                    break;
-                case InputOpcode.CAST_NUMBER:
-                case InputOpcode.CAST_NUMBER_INDEX:
-                case InputOpcode.CAST_NUMBER_OR_NAN:
-                    if (this.isAlwaysType(InputType.BOOLEAN_INTERPRETABLE)) {
-                        this.type = InputType.NUMBER;
-                        this.inputs.value = +Cast.toBoolean(this.inputs.value);
-                    }
-                    var numberValue = +this.inputs.value;
-                    if (numberValue) {
-                        this.inputs.value = numberValue;
-                    } else {
-                        // numberValue is one of 0, -0, or NaN
-                        if (Object.is(numberValue, -0)) this.inputs.value = -0;
-                        else this.inputs.value = 0; // Convert NaN to 0
-                    }
-                    if (castOpcode === InputOpcode.CAST_NUMBER_INDEX) {
-                        // Round numberValue to an integer
-                        numberValue |= 0;
-                    }
-                    this.type = IntermediateInput.getNumberInputType(this.inputs.value);
-                    break;
-                case InputOpcode.CAST_STRING:
-                    this.inputs.value += '';
-                    this.type = InputType.STRING;
-                    break;
+            case InputOpcode.CAST_BOOLEAN:
+                this.inputs.value = Cast.toBoolean(this.inputs.value);
+                this.type = InputType.BOOLEAN;
+                break;
+            case InputOpcode.CAST_NUMBER:
+            case InputOpcode.CAST_NUMBER_INDEX:
+            case InputOpcode.CAST_NUMBER_OR_NAN:
+                if (this.isAlwaysType(InputType.BOOLEAN_INTERPRETABLE)) {
+                    this.type = InputType.NUMBER;
+                    this.inputs.value = +Cast.toBoolean(this.inputs.value);
+                }
+                var numberValue = +this.inputs.value;
+                if (numberValue) {
+                    this.inputs.value = numberValue;
+                } else {
+                    // numberValue is one of 0, -0, or NaN
+                    if (Object.is(numberValue, -0)) this.inputs.value = -0;
+                    else this.inputs.value = 0; // Convert NaN to 0
+                }
+                if (castOpcode === InputOpcode.CAST_NUMBER_INDEX) {
+                    // Round numberValue to an integer
+                    numberValue |= 0;
+                }
+                this.type = IntermediateInput.getNumberInputType(this.inputs.value);
+                break;
+            case InputOpcode.CAST_STRING:
+                this.inputs.value += '';
+                this.type = InputType.STRING;
+                break;
             }
             return this;
         }
 
-        return new IntermediateInput(castOpcode, targetType, { target: this });
+        return new IntermediateInput(castOpcode, targetType, {target: this});
     }
 }
 
@@ -209,7 +209,7 @@ class IntermediateStack {
     /**
      * @param {IntermediateStackBlock[]} [blocks]
      */
-    constructor(blocks) {
+    constructor (blocks) {
         /** @type {IntermediateStackBlock[]} */
         this.blocks = blocks ?? [];
     }
@@ -220,7 +220,7 @@ class IntermediateStack {
  * Scripts do not necessarily have hats.
  */
 class IntermediateScript {
-    constructor() {
+    constructor () {
         /**
          * The ID of the top block of this script.
          * @type {string?}
@@ -307,7 +307,7 @@ class IntermediateRepresentation {
      * @param {IntermediateScript} entry
      * @param {Object.<string, IntermediateScript>} procedures
      */
-    constructor(entry, procedures) {
+    constructor (entry, procedures) {
         /**
          * The entry point of this IR.
          * @type {IntermediateScript}
@@ -326,7 +326,7 @@ class IntermediateRepresentation {
      * @param {string} proccode
      * @returns {IntermediateScript | undefined}
      */
-    getProcedure(proccode) {
+    getProcedure (proccode) {
         return Object.values(this.procedures).find(procedure => procedure.procedureCode === proccode);
     }
 }
