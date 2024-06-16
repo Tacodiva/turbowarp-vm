@@ -4,7 +4,7 @@ const { BlockType, ArgumentType } = require('../../src/extension-support/tw-exte
 const IRGenerator = require('../../src/compiler/irgen');
 const { IROptimizer } = require('../../src/compiler/iroptimizer');
 const { IntermediateInput } = require('../../src/compiler/intermediate');
-const log = require('../../src/util/log');
+const nanolog = require('@turbowarp/nanolog');
 
 const VALUES = [
     NaN,
@@ -72,7 +72,7 @@ const str = (number) => Object.is(number, -0) ? "-0" : number.toString();
 test('operator type matrix', async t => {
 
     const vm = new VM();
-    log.suggest.deny('vm', 'error');
+    nanolog.disable();
 
     let reportedValue;
 

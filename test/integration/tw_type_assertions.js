@@ -13,7 +13,7 @@ const fixture = fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'tw-type-
 
 test("type assertions", async t => {
     const vm = new VM();
-    vm.setCompilerOptions({ enabled: true });
+    vm.setCompilerOptions({ enabled: true, warpTimer: false });
 
     class TestExtension {
         getInfo() {
@@ -87,14 +87,14 @@ test("type assertions", async t => {
                         const newRegionNameInput = block.inputs.inputs.NAME;
                         if (newRegionNameInput.opcode !== InputOpcode.CONSTANT)
                             throw new Error("Region block inputs must be a constant.");
-                        yield* enumerateAssertions(block.inputs.substacks[0].blocks, newRegionNameInput.inputs.value);
+                        yield* enumerateAssertions(block.inputs.substacks[0].blocks, (region ? region + ", " : "") + newRegionNameInput.inputs.value);
                         break;
                 }
             } else {
                 for (const inputName in block.inputs) {
                     const input = block.inputs[inputName];
                     if (input instanceof IntermediateStack)
-                        yield* enumerateAssertions(input.blocks);
+                        yield* enumerateAssertions(input.blocks, region);
                 }
             }
         }
@@ -103,61 +103,76 @@ test("type assertions", async t => {
     const irGenerator = new IRGenerator(thread);
     const ir = irGenerator.generate();
 
-    for (const { block } of enumerateAssertions(ir.entry.stack.blocks)) {
-        block.ignoreState = true;
-    }
+    runTests("run tests with yields", false);
+    runTests("run tests without yields", true);
 
-    const irOptimizer = new IROptimizer(ir);
-    irOptimizer.optimize();
+    function runTests(proccode, ignoreYields) {
 
-    for (const { block, region } of enumerateAssertions(ir.entry.stack.blocks, "[no region]")) {
-        const valueInput = block.inputs.inputs.VALUE;
-        const adverb = block.inputs.fields.ADVERB;
-        const noun = block.inputs.fields.NOUN;
+        const assertions = [...enumerateAssertions(ir.getProcedure(proccode).stack.blocks)];
 
-        let nounType;
-
-        switch (noun) {
-            case "zero":
-                nounType = InputType.NUMBER_ZERO;
-                break;
-            case "infinity":
-                nounType = InputType.NUMBER_POS_INF;
-                break;
-            case "NaN":
-                nounType = InputType.NUMBER_NAN;
-                break;
-            case "a number":
-                nounType = InputType.NUMBER;
-                break;
-            case "a string":
-                nounType = InputType.STRING;
-                break;
-            case "number interpretable":
-                nounType = InputType.NUMBER_INTERPRETABLE;
-                break;
-            case "anything":
-                nounType = InputType.ANY;
-                break;
-            default: throw new Error(`$Invalid noun menu option ${noun}`);
+        for (const { block } of assertions) {
+            block.ignoreState = true;
         }
 
-        const message = `(${region}) assert ${valueInput.opcode} (type ${valueInput.type}) is ${adverb} ${noun}`;
+        const irOptimizer = new IROptimizer(ir);
+        irOptimizer.ignoreYields = ignoreYields;
+        irOptimizer.optimize();
 
-        switch (adverb) {
-            case "never":
-                t.ok(!valueInput.isSometimesType(nounType), message);
-                break;
-            case "always":
-                t.ok(valueInput.isAlwaysType(nounType), message);
-                break;
-            case "sometimes":
-                t.ok(valueInput.isSometimesType(nounType), message);
-                break;
-            case "exactly":
-                t.equal(valueInput.type, nounType, message);
-                break;
-            default: throw new Error(`$Invalid adverb menu option ${adverb}`);
+        for (const { block, region } of assertions) {
+            const valueInput = block.inputs.inputs.VALUE;
+            const adverb = block.inputs.fields.ADVERB;
+            const noun = block.inputs.fields.NOUN;
+
+            let nounType;
+
+            switch (noun) {
+                case "zero":
+                    nounType = InputType.NUMBER_ZERO;
+                    break;
+                case "infinity":
+                    nounType = InputType.NUMBER_POS_INF;
+                    break;
+                case "NaN":
+                    nounType = InputType.NUMBER_NAN;
+                    break;
+                case "a number":
+                    nounType = InputType.NUMBER;
+                    break;
+                case "a string":
+                    nounType = InputType.STRING;
+                    break;
+                case "number interpretable":
+                    nounType = InputType.NUMBER_INTERPRETABLE;
+                    break;
+                case "anything":
+                    nounType = InputType.ANY;
+                    break;
+                default: throw new Error(`$Invalid noun menu option ${noun}`);
+            }
+
+            let message;
+
+            if (valueInput.opcode == InputOpcode.VAR_GET) {
+                message = `(${region}) assert variable '${valueInput.inputs.variable.name}' (type ${valueInput.type}) is ${adverb} ${noun}`;
+            } else {
+                message = `(${region}) assert ${valueInput.opcode} (type ${valueInput.type}) is ${adverb} ${noun}`;
+            }
+
+            switch (adverb) {
+                case "never":
+                    t.ok(!valueInput.isSometimesType(nounType), message);
+                    break;
+                case "always":
+                    t.ok(valueInput.isAlwaysType(nounType), message);
+                    break;
+                case "sometimes":
+                    t.ok(valueInput.isSometimesType(nounType), message);
+                    break;
+                case "exactly":
+                    t.equal(valueInput.type, nounType, message);
+                    break;
+                default: throw new Error(`$Invalid adverb menu option ${adverb}`);
+            }
         }
     }
 

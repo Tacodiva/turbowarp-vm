@@ -320,6 +320,15 @@ class IntermediateRepresentation {
          */
         this.procedures = procedures;
     }
+
+    /**
+     * Gets the first procedure with the given proccode.
+     * @param {string} proccode
+     * @returns {IntermediateScript | undefined}
+     */
+    getProcedure(proccode) {
+        return Object.values(this.procedures).find(procedure => procedure.procedureCode === proccode);
+    }
 }
 
 module.exports = {

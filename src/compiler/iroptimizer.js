@@ -121,6 +121,8 @@ class IROptimizer {
     constructor(ir) {
         /** @type {IntermediateRepresentation} */
         this.ir = ir;
+        /** @type {boolean} Used for testing */
+        this.ignoreYields = false;
     }
 
     /**
@@ -332,9 +334,7 @@ class IROptimizer {
                     // NEG_REAL * -0 = 0
                     if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_NEG_ZERO)) return true;
                     // Rounding errors like 1e-323 * 0.1 = 0
-                    if ((leftType & InputType.NUMBER_POS_REAL) && (rightType & InputType.NUMBER_POS_REAL)) return true;
-                    // Rounding errors like -1e-323 / -0.1 = 0
-                    if ((leftType & InputType.NUMBER_NEG_REAL) && (rightType & InputType.NUMBER_NEG_REAL)) return true;
+                    if ((leftType & InputType.NUMBER_FRACT) && (rightType & InputType.NUMBER_FRACT)) return true;
                 }
                 if (canBeZero()) resultType |= InputType.NUMBER_ZERO;
 
@@ -520,27 +520,30 @@ class IROptimizer {
 
         switch (stackBlock.opcode) {
             case StackOpcode.VAR_SET:
-                return state.setVariableType(inputs.variable, inputs.value.type) || modified;
+                modified = state.setVariableType(inputs.variable, inputs.value.type) || modified;
+                break;
             case StackOpcode.CONTROL_WHILE:
             case StackOpcode.CONTROL_FOR:
             case StackOpcode.CONTROL_REPEAT:
-                return this.analyzeLoopedStack(inputs.do, state, stackBlock) || modified;
+                modified = this.analyzeLoopedStack(inputs.do, state, stackBlock) || modified;
+                break;
             case StackOpcode.CONTROL_IF_ELSE: {
                 const trueState = state.clone();
                 modified = this.analyzeStack(inputs.whenTrue, trueState) || modified;
                 modified = this.analyzeStack(inputs.whenFalse, state) || modified;
                 modified = state.or(trueState) || modified;
-                return modified;
+                break;
             }
             case StackOpcode.PROCEDURE_CALL: {
                 modified = this.analyzeInputs(inputs.inputs, state) || modified;
                 const script = this.ir.procedures[inputs.variant];
 
                 if (!script || !script.cachedAnalysisEndState) {
-                    return state.clear() || modified;
+                    modified = state.clear() || modified;
                 } else {
-                    return state.after(script.cachedAnalysisEndState) || modified;
+                    modified = state.after(script.cachedAnalysisEndState) || modified;
                 }
+                break;
             }
             case StackOpcode.COMPATIBILITY_LAYER: {
                 this.analyzeInputs(inputs.inputs, state);
@@ -553,7 +556,9 @@ class IROptimizer {
             }
         }
 
-        return false;
+        // if (stackBlock.ignoreState) return false;
+
+        return modified;
     }
 
     /**
@@ -569,7 +574,7 @@ class IROptimizer {
             let stateChanged = this.analyzeStackBlock(stackBlock, state);
 
             if (!stackBlock.ignoreState) {
-                if (stackBlock.yields) stateChanged = stateChanged || state.clear();
+                if (stackBlock.yields && !this.ignoreYields) stateChanged = stateChanged || state.clear();
 
                 if (stateChanged) {
                     if (stackBlock.exitState) stackBlock.exitState.or(state);
@@ -589,7 +594,7 @@ class IROptimizer {
      * @private
      */
     analyzeLoopedStack(stack, state, block) {
-        if (block.yields) {
+        if (block.yields && !this.ignoreYields) {
             let modified = state.clear();
             block.entryState = state.clone();
             block.exitState = state.clone();
