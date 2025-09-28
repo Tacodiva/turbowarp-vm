@@ -60,6 +60,36 @@ class IntermediateStackBlock {
  */
 class IntermediateInput {
 
+    /**
+     * @param {string} constant
+     * @param {boolean} preserveStrings
+     * @returns {InputType}
+     */
+    static getInputType (constant, preserveStrings = false) {
+        const numConstant = +constant;
+
+        if (!Number.isNaN(numConstant) && (constant.trim() !== '' || constant.includes('\t'))) {
+            if (!preserveStrings && numConstant.toString() === constant) {
+                return IntermediateInput.getNumberInputType(numConstant);
+            }
+            return InputType.STRING_NUM;
+        }
+
+        if (!preserveStrings) {
+            if (constant === 'true') {
+                return InputType.STRING_BOOLEAN;
+            } else if (constant === 'false') {
+                return InputType.STRING_BOOLEAN;
+            }
+        }
+
+        return InputType.STRING_NAN;
+    }
+
+    /**
+     * @param {number} number
+     * @returns {InputType}
+     */
     static getNumberInputType (number) {
         if (typeof number !== 'number') throw new Error('Expected a number.');
         if (number === Infinity) return InputType.NUMBER_POS_INF;
