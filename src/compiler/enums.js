@@ -82,7 +82,8 @@ const InputType = {
     STRING_HAS_CASE_UPPER: 0x8000,
     /** Any string which contains case invarient characters */
     STRING_HAS_CASE_INVARIENT: 0x10000,
-    /** A string which could have any case. Equal to STRING_HAS_CASE_LOWER | STRING_HAS_CASE_UPPER | STRING_HAS_CASE_INVARIENT */
+    /* A string which could have any case.
+     * Equal to STRING_HAS_CASE_LOWER | STRING_HAS_CASE_UPPER | STRING_HAS_CASE_INVARIENT */
     STRING_ANY_CASE: 0x1C000,
 
     /** Any string. Equal to STRING_NUM | STRING_NAN | STRING_BOOLEAN | STRING_ANY_CASE */

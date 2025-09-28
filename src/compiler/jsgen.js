@@ -85,34 +85,34 @@ const inputsToComperableStrings = (left, right, forceLower) => {
     const leftStringified = left.toType(InputType.STRING);
     const rightStringified = right.toType(InputType.STRING);
 
-    let leftCaseType = leftStringified.type & (InputType.STRING_HAS_CASE_UPPER | InputType.STRING_HAS_CASE_LOWER);
-    let rightCaseType = rightStringified.type & (InputType.STRING_HAS_CASE_UPPER | InputType.STRING_HAS_CASE_LOWER);
+    const leftCaseType = leftStringified.type & (InputType.STRING_HAS_CASE_UPPER | InputType.STRING_HAS_CASE_LOWER);
+    const rightCaseType = rightStringified.type & (InputType.STRING_HAS_CASE_UPPER | InputType.STRING_HAS_CASE_LOWER);
 
     if (leftCaseType === InputType.STRING_HAS_CASE_LOWER || leftCaseType === 0) {
         // left only has lower case characters or is invarient, cast right to lower case
-        return { left: leftStringified, right: rightStringified.toStringWithCase(false) };
+        return {left: leftStringified, right: rightStringified.toStringWithCase(false)};
     }
 
     if (rightCaseType === InputType.STRING_HAS_CASE_LOWER || rightCaseType === 0) {
         // right only has lower case characters or is invarient, cast left to lower case
-        return { left: leftStringified.toStringWithCase(false), right: rightStringified };
+        return {left: leftStringified.toStringWithCase(false), right: rightStringified};
     }
 
     if (!forceLower) {
         if (leftCaseType === InputType.STRING_HAS_CASE_UPPER) {
             // left only has upper case characters, cast right to upper case
-            return { left: leftStringified, right: rightStringified.toStringWithCase(true) };
+            return {left: leftStringified, right: rightStringified.toStringWithCase(true)};
         }
 
         if (rightCaseType === InputType.STRING_HAS_CASE_UPPER) {
             // right only has upper case characters, cast left to upper case
-            return { left: leftStringified.toStringWithCase(true), right: rightStringified };
+            return {left: leftStringified.toStringWithCase(true), right: rightStringified};
         }
     }
 
     // Both strings could be a mix of cases, so we have to cast both.
-    return { left: leftStringified.toStringWithCase(false), right: rightStringified.toStringWithCase(false) };
-}
+    return {left: leftStringified.toStringWithCase(false), right: rightStringified.toStringWithCase(false)};
+};
 
 /**
  * A frame contains some information about the current substack being compiled.

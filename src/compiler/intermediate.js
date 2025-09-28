@@ -68,8 +68,7 @@ class IntermediateInput {
     static getInputType (constant, preserveStrings = false) {
         const numConstant = +constant;
 
-        /** @param {string} constant */
-        const getCaseFlags = (constant) => {
+        const getCaseFlags = () => {
             let stringCaseFlags = 0;
 
             for (let i = 0; i < constant.length; i++) {
@@ -87,24 +86,24 @@ class IntermediateInput {
             }
 
             return stringCaseFlags;
-        }
+        };
 
         if (!Number.isNaN(numConstant) && (constant.trim() !== '' || constant.includes('\t'))) {
             if (!preserveStrings && numConstant.toString() === constant) {
                 return IntermediateInput.getNumberInputType(numConstant);
             }
-            return InputType.STRING_NUM | getCaseFlags(constant);
+            return InputType.STRING_NUM | getCaseFlags();
         }
 
         if (!preserveStrings) {
             if (constant === 'true') {
-                return InputType.STRING_BOOLEAN | getCaseFlags(constant);
+                return InputType.STRING_BOOLEAN | getCaseFlags();
             } else if (constant === 'false') {
-                return InputType.STRING_BOOLEAN | getCaseFlags(constant);
+                return InputType.STRING_BOOLEAN | getCaseFlags();
             }
         }
 
-        return InputType.STRING_NAN | getCaseFlags(constant);
+        return InputType.STRING_NAN | getCaseFlags();
     }
 
     /**
@@ -272,8 +271,8 @@ class IntermediateInput {
      * @param {boolean} upper
      * @returns
      */
-    toStringWithCase(upper) {
-        let stringified = this.toType(InputType.STRING);
+    toStringWithCase (upper) {
+        const stringified = this.toType(InputType.STRING);
 
         if (upper) {
             if (stringified.isSometimesType(InputType.STRING_HAS_CASE_LOWER)) {
@@ -282,16 +281,24 @@ class IntermediateInput {
                     stringified.inputs.value = stringified.inputs.value.toUpperCase();
                     stringified.type &= ~InputType.STRING_HAS_CASE_LOWER;
                 } else {
-                    return new IntermediateInput(InputOpcode.CAST_UPPER_CASE, stringified.type & ~InputType.STRING_HAS_CASE_LOWER, {target: stringified});
+                    return new IntermediateInput(
+                        InputOpcode.CAST_UPPER_CASE,
+                        stringified.type & ~InputType.STRING_HAS_CASE_LOWER,
+                        {target: stringified}
+                    );
                 }
             }
-        } else {
+        } else if (stringified.isSometimesType(InputType.STRING_HAS_CASE_UPPER)) {
             if (stringified.opcode === InputOpcode.CONSTANT) {
                 // Do the case conversion at compile time
                 stringified.inputs.value = stringified.inputs.value.toLowerCase();
                 stringified.type &= ~InputType.STRING_HAS_CASE_UPPER;
             } else {
-                return new IntermediateInput(InputOpcode.CAST_LOWER_CASE, stringified.type & ~InputType.STRING_HAS_CASE_UPPER, {target: stringified});
+                return new IntermediateInput(
+                    InputOpcode.CAST_LOWER_CASE,
+                    stringified.type & ~InputType.STRING_HAS_CASE_UPPER,
+                    {target: stringified}
+                );
             }
         }
 
